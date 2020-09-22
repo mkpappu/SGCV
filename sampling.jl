@@ -32,7 +32,7 @@ end
 κs = [1.0, 1.0]
 ωs = [-10.0, -2.0]
 x, std_x, z = generate_swtiching_hgf(n_samples, switches, κs, ωs)
-obs = x .+ randn(length(x))
+obs = x .+ 0.1 .* randn(length(x))
 
 @model SHGF(y, κs, ωs) = begin
     n_samples = length(y)
@@ -54,17 +54,17 @@ obs = x .+ randn(length(x))
         s[t] ~ Categorical(vec(A[s[t-1]]))
         z[t] ~ Normal(z[t-1], 0.1)
         x[t] ~ Normal(x[t-1], exp(κs[s[t]]*z[t] + ωs[s[t]]))
-        y[t-1] ~ Normal(x[t], 1.0)
+        y[t-1] ~ Normal(x[t], 0.1)
     end
 end
 
 
 g = Gibbs(HMC(0.001, 7, :x, :z, :A), PG(20, :s))
-nuts = NUTS(0.7)
+nuts = NUTS(0.69)
 hmc = HMC(0.001, 5)
 pf = SMC(1000)
 
-chn = sample(SHGF(obs, κs, ωs), g, 1000)
+chn = sample(SHGF(obs, κs, ωs), PG(10), 1000)
 
 samples = get(chn, :x)
 mx = [mean(samples.x[i].data) for i in 1:n_samples]
@@ -76,6 +76,7 @@ vz = [std(samples.z[i].data) for i in 1:n_samples]
 
 samples = get(chn, :s)
 ms = [mean(samples.s[i].data) for i in 1:n_samples]
+ms = Int64.(round.(ms))
 
 plot(x)
 plot!(mx, ribbon=vx)
