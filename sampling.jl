@@ -60,11 +60,8 @@ end
 
 
 g = Gibbs(HMC(0.001, 7, :x, :z, :A), PG(20, :s))
-nuts = NUTS(0.69)
-hmc = HMC(0.001, 5)
-pf = SMC(1000)
-
-chn = sample(SHGF(obs, κs, ωs), PG(10), 1000)
+pg = PG(10)
+chn = sample(SHGF(obs, κs, ωs), pg, 1000)
 
 samples = get(chn, :x)
 mx = [mean(samples.x[i].data) for i in 1:n_samples]
@@ -79,8 +76,8 @@ ms = [mean(samples.s[i].data) for i in 1:n_samples]
 ms = Int64.(round.(ms))
 
 plot(x)
-plot!(mx, ribbon=vx)
 scatter!(obs)
+plot!(mx, ribbon=vx)
 
 scatter(switches)
 scatter!(ms)
