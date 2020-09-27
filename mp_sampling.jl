@@ -1,7 +1,8 @@
 using ForneyLab
-using GCV
 using ProgressMeter
+using GCV
 using Plots
+using SparseArrays
 
 n_samples = 100
 switches = Array{Int64}(undef,n_samples)
@@ -40,11 +41,12 @@ fg = FactorGraph()
 κ1, κ2 = 2.0, 0.5
 @RV ω ~ GaussianMeanPrecision(1.0, huge)
 
-@RV s_t ~ Beta(placeholder(:alpha), placeholder(:beta))
-@RV b_t ~ Bernoulli(s_t)
+@RV s_t_min ~ Categorical(1/2*ones(2))
+@RV A ~ Dirichlet(ones(2,2))
+@RV s_t ~ Transition(s_t_min, A)
 
-f(b) = b*κ1 + (1-b)*κ2
-@RV κ ~ Nonlinear{Sampling}(b_t,g=f)
+f(b) = findmax(Array(b))[2]*κ1 + (1-findmax(Array(b))[2])*κ2
+@RV κ ~ Nonlinear{Sampling}(s_t,g=f)
 @RV z_t_min ~ GaussianMeanPrecision(placeholder(:mz_t_min),placeholder(:wz_t_min))
 @RV z_t ~ GaussianMeanPrecision(z_t_min, 10.0)
 @RV x_t_min ~ GaussianMeanPrecision(placeholder(:mx_t_min),placeholder(:wx_t_min))
@@ -53,7 +55,7 @@ f(b) = b*κ1 + (1-b)*κ2
 # Data placeholder
 placeholder(y_t, :y_t)
 
-q = PosteriorFactorization([z_t_min;z_t],[x_t_min;x_t], κ, ω, s_t; ids=[:Z :X :Κ :Ω :S])
+q = PosteriorFactorization([z_t_min;z_t],[x_t_min;x_t], κ, ω, s_t, s_t_min, A; ids=[:Z :X :Κ :Ω :S :S0 :A ])
 algo = messagePassingAlgorithm(free_energy=true)
 src_code = algorithmSourceCode(algo, free_energy=true)
 
@@ -63,29 +65,34 @@ eval(Meta.parse(src_code))
 
 m_z = Vector{Float64}(undef, n_samples)
 w_z = Vector{Float64}(undef, n_samples)
-m_s = Vector{Float64}(undef, n_samples)
+m_x = Vector{Float64}(undef, n_samples)
+w_x = Vector{Float64}(undef, n_samples)
+m_s = Vector{SparseVector}(undef, n_samples)
+m_A = Vector{Matrix}(undef, n_samples)
 
 m_z_t_min, w_z_t_min = 0.0, 10.0
 m_x_t_min, w_x_t_min = 0.0, 10.0
+m_s_min = SparseVector([0.8, 0.2])
+A_min = [.5 .2; .5 .8]
 
 n_its = 10
 marginals_mf = Dict()
 F_mf = zeros(n_its,n_samples)
 @showprogress for t in 1:n_samples
-    global m_z_t_min, w_z_t_min, m_x_t_min, w_x_t_min
+    global m_z_t_min, w_z_t_min, m_x_t_min, w_x_t_min, m_s_min, A_min
     # Prepare data and prior statistics
     data = Dict(:y_t       => obs[t],
                 :mz_t_min => m_z_t_min,
                 :wz_t_min => w_z_t_min,
                 :mx_t_min => m_x_t_min,
-                :wx_t_min => w_x_t_min,
-                :alpha => 3.0, :beta => 1.0)
+                :wx_t_min => w_x_t_min)
 
     # Initial recognition distributions
-    marginals_mf[:z_t] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=0.0, w=1.0)
-    marginals_mf[:z_t_min] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=0.0, w=1.0)
-    marginals_mf[:b_t] = ProbabilityDistribution(Univariate, Bernoulli, p=0.5)
-    marginals_mf[:s_t] = vague(Beta)
+    marginals_mf[:z_t] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
+    marginals_mf[:z_t_min] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
+    marginals_mf[:s_t_min] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
+    marginals_mf[:s_t] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
+    marginals_mf[:A] = ProbabilityDistribution(MatrixVariate, Dirichlet, a=A_min)
     marginals_mf[:κ] = vague(SampleList)
     marginals_mf[:ω] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=1.0, w=huge)
 
@@ -94,32 +101,38 @@ F_mf = zeros(n_its,n_samples)
         stepX!(data, marginals_mf)
         stepZ!(data, marginals_mf)
         stepΚ!(data, marginals_mf)
+        stepA!(data, marginals_mf)
         stepS!(data, marginals_mf)
+        stepS0!(data, marginals_mf)
         #stepΩ!(data, marginals_mf)
         F_mf[i,t] = freeEnergy(data, marginals_mf)
     end
     m_z_t_min = ForneyLab.unsafeMean(marginals_mf[:z_t])
     w_z_t_min = ForneyLab.unsafePrecision(marginals_mf[:z_t])
+    m_x_t_min = ForneyLab.unsafeMean(marginals_mf[:x_t])
+    w_x_t_min = ForneyLab.unsafePrecision(marginals_mf[:x_t])
     m_s_t = ForneyLab.unsafeMean(marginals_mf[:s_t])
-    m_y_t = y_data[t]
+    A_min = ForneyLab.unsafeMean(marginals_mf[:A])
+    m_y_t = obs[t]
 
     # Store to buffer
+    m_x[t] = m_x_t_min
+    w_x[t] = w_x_t_min
     m_z[t] = m_z_t_min
     w_z[t] = w_z_t_min
     m_s[t] = m_s_t
-end
-
-function stepX1!(data::Dict, marginals::Dict=Dict(), messages::Vector{Message}=Array{Message}(undef, 4))
-
-    messages[1] = ruleVBGaussianMeanPrecisionOut(nothing, ProbabilityDistribution(Univariate, PointMass, m=data[:mx_t_min]), ProbabilityDistribution(Univariate, PointMass, m=data[:wx_t_min]))
-    messages[2] = ruleVBGaussianMeanPrecisionM(ProbabilityDistribution(Univariate, PointMass, m=data[:y_t]), nothing, ProbabilityDistribution(Univariate, PointMass, m=1.0))
-    messages[3] = ruleSVBGaussianControlledVarianceXGNDDD(messages[2], nothing, marginals[:z_t], marginals[:κ], marginals[:ω])
-    messages[4] = ruleSVBGaussianControlledVarianceOutNGDDD(nothing, messages[1], marginals[:z_t], marginals[:κ], marginals[:ω])
-
-    marginals[:x_t] = messages[4].dist * messages[2].dist
-    marginals[:x_t_min] = messages[1].dist * messages[3].dist
-    marginals[:x_t_x_t_min] = ruleMGaussianControlledVarianceGGDDD(messages[2], messages[1], marginals[:z_t], marginals[:κ], marginals[:ω])
-
-    return marginals
+    m_A[t] = A_min
 
 end
+
+plot(m_z, ribbon=sqrt.(inv.(w_z)))
+plot!(z)
+plot!(std_x)
+
+m_switches = [x[2] for x in findmax.(m_s)]
+scatter(m_switches)
+scatter!(switches)
+
+plot(m_x, ribbon=sqrt.(inv.(w_x)))
+plot!(x)
+scatter!(obs)
