@@ -6,13 +6,13 @@ using SparseArrays
 
 n_samples = 100
 switches = Array{Int64}(undef,n_samples)
-switches[1:25] .= 1;
+switches[1:25] .= 2;
 switches[26:60] .= 2;
 switches[61:n_samples] .= 1;
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
-    ωs = [-10.0, -2.0]
+    ωs = [10.0 -2.0]
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -38,15 +38,15 @@ obs = x .+ sqrt(0.1)*randn(length(x))
 
 fg = FactorGraph()
 
-κ1, κ2 = 2.0, 0.5
-@RV ω ~ GaussianMeanPrecision(1.0, huge)
+ω1, ω2 = 10.0, -2.0
+@RV κ ~ GaussianMeanPrecision(1.0, huge)
 
-@RV s_t_min ~ Categorical(1/2*ones(2))
-@RV A ~ Dirichlet(ones(2,2))
+@RV s_t_min ~ Categorical(placeholder(:m_s_t_min, dims=(2, )))
+@RV A ~ Dirichlet(placeholder(:A_t_min, dims=(2, 2)))
 @RV s_t ~ Transition(s_t_min, A)
 
-f(b) = findmax(Array(b))[2]*κ1 + (1-findmax(Array(b))[2])*κ2
-@RV κ ~ Nonlinear{Sampling}(s_t,g=f)
+f(s) = findmax(Array(s))[2]*ω1 + (1-findmax(Array(s))[2])*ω2
+@RV ω ~ Nonlinear{Sampling}(s_t,g=f)
 @RV z_t_min ~ GaussianMeanPrecision(placeholder(:mz_t_min),placeholder(:wz_t_min))
 @RV z_t ~ GaussianMeanPrecision(z_t_min, 10.0)
 @RV x_t_min ~ GaussianMeanPrecision(placeholder(:mx_t_min),placeholder(:wx_t_min))
@@ -67,13 +67,16 @@ m_z = Vector{Float64}(undef, n_samples)
 w_z = Vector{Float64}(undef, n_samples)
 m_x = Vector{Float64}(undef, n_samples)
 w_x = Vector{Float64}(undef, n_samples)
-m_s = Vector{SparseVector}(undef, n_samples)
+m_s = Vector{Array{Float64}}(undef, n_samples)
 m_A = Vector{Matrix}(undef, n_samples)
+s_ω = Vector{Array{Float64}}(undef, n_samples)
+w_ω = Vector{Array{Float64}}(undef, n_samples)
 
 m_z_t_min, w_z_t_min = 0.0, 10.0
+s_ω_min, w_ω_min = vague(SampleList).params[:s], vague(SampleList).params[:w]
 m_x_t_min, w_x_t_min = 0.0, 10.0
-m_s_min = SparseVector([0.8, 0.2])
-A_min = [.5 .2; .5 .8]
+m_s_min = Array([0.1, 0.9])
+A_min = [7.0 1.0; 0.3 9.0]
 
 n_its = 10
 marginals_mf = Dict()
@@ -85,26 +88,27 @@ F_mf = zeros(n_its,n_samples)
                 :mz_t_min => m_z_t_min,
                 :wz_t_min => w_z_t_min,
                 :mx_t_min => m_x_t_min,
-                :wx_t_min => w_x_t_min)
+                :wx_t_min => w_x_t_min,
+                :A_t_min => A_min,
+                :m_s_t_min => m_s_min)
 
     # Initial recognition distributions
     marginals_mf[:z_t] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
     marginals_mf[:z_t_min] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
     marginals_mf[:s_t_min] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
-    marginals_mf[:s_t] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
     marginals_mf[:A] = ProbabilityDistribution(MatrixVariate, Dirichlet, a=A_min)
-    marginals_mf[:κ] = vague(SampleList)
-    marginals_mf[:ω] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=1.0, w=huge)
+    marginals_mf[:ω] = vague(SampleList)#ProbabilityDistribution(Univariate, SampleList, s=s_κ_min, w=w_κ_min)
+    marginals_mf[:κ] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=1.0, w=huge)
 
     # Execute algorithm
     for i = 1:n_its
         stepX!(data, marginals_mf)
         stepZ!(data, marginals_mf)
-        stepΚ!(data, marginals_mf)
-        stepA!(data, marginals_mf)
+        #stepΚ!(data, marginals_mf)
         stepS!(data, marginals_mf)
         stepS0!(data, marginals_mf)
-        #stepΩ!(data, marginals_mf)
+        stepΩ!(data, marginals_mf)
+        #stepA!(data, marginals_mf)
         F_mf[i,t] = freeEnergy(data, marginals_mf)
     end
     m_z_t_min = ForneyLab.unsafeMean(marginals_mf[:z_t])
@@ -113,6 +117,9 @@ F_mf = zeros(n_its,n_samples)
     w_x_t_min = ForneyLab.unsafePrecision(marginals_mf[:x_t])
     m_s_t = ForneyLab.unsafeMean(marginals_mf[:s_t])
     A_min = ForneyLab.unsafeMean(marginals_mf[:A])
+    s_ω_min = marginals_mf[:ω].params[:s]
+    w_ω_min = marginals_mf[:ω].params[:w]
+
     m_y_t = obs[t]
 
     # Store to buffer
@@ -122,6 +129,8 @@ F_mf = zeros(n_its,n_samples)
     w_z[t] = w_z_t_min
     m_s[t] = m_s_t
     m_A[t] = A_min
+    s_ω[t] = s_ω_min
+    w_ω[t] = w_ω_min
 
 end
 
