@@ -12,7 +12,7 @@ switches[61:n_samples] .= 1;
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
-    ωs = [10.0 -2.0]
+    ωs = [-5.0 -2.0]
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -35,27 +35,38 @@ end
 
 x, std_x, z = generate_swtiching_hgf(n_samples, switches)
 obs = x .+ sqrt(0.1)*randn(length(x))
+n_samples = length(obs)
+dim = 2
 
 fg = FactorGraph()
 
-ω1, ω2 = 10.0, -2.0
-@RV κ ~ GaussianMeanPrecision(1.0, huge)
+s = Vector{Variable}(undef, n_samples)
+ω = Vector{Variable}(undef, n_samples)
+x = Vector{Variable}(undef, n_samples)
+z = Vector{Variable}(undef, n_samples)
+y = Vector{Variable}(undef, n_samples)
 
-@RV s_t_min ~ Categorical(placeholder(:m_s_t_min, dims=(2, )))
-@RV A ~ Dirichlet(placeholder(:A_t_min, dims=(2, 2)))
-@RV s_t ~ Transition(s_t_min, A)
+ω1, ω2 = -5.0, -2.0
+f(s) = (findmax(Array(s))[2] - 1)*ω1 + (2 - findmax(Array(s))[2])*ω2
+@RV z_0 ~ GaussianMeanPrecision(0.0, 10.0)
+@RV s_0 ~ Categorical(ones(dim)/dim)
+@RV A ~ Dirichlet(ones(dim, dim))
+@RV x_0 ~ GaussianMeanPrecision(0.0, 1.0)
+x_t_min, s_t_min, z_t_min = x_0, s_0, z_0
+for t in 1:n_samples
+    global s_t_min, x_t_min, z_t_min
+    @RV s[t] ~ Transition(s_t_min, A)
+    @RV ω[t] ~ Nonlinear{Sampling}(s[t],g=f)
+    @RV z[t] ~ GaussianMeanPrecision(z_t_min, 10.0)
+    @RV x[t] ~ GaussianControlledVariance(x_t_min, z[t], 1.0, ω[t])
+    @RV y[t] ~ GaussianMeanPrecision(x[t], 1.0)
+    placeholder(y[t], :y, index=t)
+    x_t_min, s_t_min, z_t_min = x[t], s[t], z[t]
+end
 
-f(s) = findmax(Array(s))[2]*ω1 + (1-findmax(Array(s))[2])*ω2
-@RV ω ~ Nonlinear{Sampling}(s_t,g=f)
-@RV z_t_min ~ GaussianMeanPrecision(placeholder(:mz_t_min),placeholder(:wz_t_min))
-@RV z_t ~ GaussianMeanPrecision(z_t_min, 10.0)
-@RV x_t_min ~ GaussianMeanPrecision(placeholder(:mx_t_min),placeholder(:wx_t_min))
-@RV x_t ~ GaussianControlledVariance(x_t_min, z_t, κ, ω)
-@RV y_t ~ GaussianMeanPrecision(x_t, 1.0)
-# Data placeholder
-placeholder(y_t, :y_t)
+ForneyLab.draw()
 
-q = PosteriorFactorization([z_t_min;z_t],[x_t_min;x_t], κ, ω, s_t, s_t_min, A; ids=[:Z :X :Κ :Ω :S :S0 :A ])
+q = PosteriorFactorization([z_0; z], [x_0; x], ω, [s_0; s], A, ids=[:Z :X :Ω :S :A ])
 algo = messagePassingAlgorithm(free_energy=true)
 src_code = algorithmSourceCode(algo, free_energy=true)
 
@@ -82,7 +93,7 @@ n_its = 10
 marginals_mf = Dict()
 F_mf = zeros(n_its,n_samples)
 @showprogress for t in 1:n_samples
-    global m_z_t_min, w_z_t_min, m_x_t_min, w_x_t_min, m_s_min, A_min
+    global m_z_t_min, w_z_t_min, m_x_t_min, w_x_t_min, m_s_min, A_min, s_ω_min, w_ω_min
     # Prepare data and prior statistics
     data = Dict(:y_t       => obs[t],
                 :mz_t_min => m_z_t_min,
@@ -97,7 +108,7 @@ F_mf = zeros(n_its,n_samples)
     marginals_mf[:z_t_min] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
     marginals_mf[:s_t_min] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
     marginals_mf[:A] = ProbabilityDistribution(MatrixVariate, Dirichlet, a=A_min)
-    marginals_mf[:ω] = vague(SampleList)#ProbabilityDistribution(Univariate, SampleList, s=s_κ_min, w=w_κ_min)
+    marginals_mf[:ω] = ProbabilityDistribution(Univariate, SampleList, s=s_ω_min, w=w_ω_min)
     marginals_mf[:κ] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=1.0, w=huge)
 
     # Execute algorithm
@@ -108,7 +119,7 @@ F_mf = zeros(n_its,n_samples)
         stepS!(data, marginals_mf)
         stepS0!(data, marginals_mf)
         stepΩ!(data, marginals_mf)
-        #stepA!(data, marginals_mf)
+        stepA!(data, marginals_mf)
         F_mf[i,t] = freeEnergy(data, marginals_mf)
     end
     m_z_t_min = ForneyLab.unsafeMean(marginals_mf[:z_t])

@@ -70,8 +70,8 @@ function generate_algorithm(ndim, n_samples)
     x = Vector{Variable}(undef, n_samples)
     y = Vector{Variable}(undef, n_samples)
     s = Vector{Variable}(undef, n_samples)
-    @RV A ~ Dirichlet([0.9 0.1; 0.1 0.9])
-    @RV κ ~ GaussianMeanPrecision([0.1, 2.0], huge*diageye(2))
+    @RV A ~ Dirichlet(ones(2, 2))
+    @RV κ ~ GaussianMeanPrecision([1.0, 1.0], huge*diageye(2))
     @RV ω ~ GaussianMeanPrecision([1.0, -2.0], huge*diageye(2))
     @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
     @RV [id=pad(:x,1)] x[1] ~ GaussianMeanPrecision(placeholder(:mx_prior1), placeholder(:wx_prior1))
@@ -109,13 +109,13 @@ function infer(obs;
     x_x_m_prior = zeros(ndims),
     x_x_w_prior = 100.0*diageye(ndims),
     z_z_m_prior = zeros(ndims),
-    z_z_w_prior = 100.0*diageye(ndims),
+    z_z_w_prior = 10.0*diageye(ndims),
     z_w_transition_prior = 100.0,
     y_w_transition_prior =  10.0,
 )
 
     marginals = Dict()
-    marginals[:A] = ProbabilityDistribution(ForneyLab.MatrixVariate, Dirichlet, a=[0.9 0.1; 0.1 0.9])#vague(Dirichlet, (2, 2))
+    marginals[:A] = ProbabilityDistribution(ForneyLab.MatrixVariate, Dirichlet, a=ones(2, 2))#vague(Dirichlet, (2, 2))
     marginals[:κ] = ProbabilityDistribution(ForneyLab.Multivariate, GaussianMeanPrecision, m = κ_m_prior, w = κ_w_prior)
     marginals[:ω] = ProbabilityDistribution(ForneyLab.Multivariate, GaussianMeanPrecision, m = ω_m_prior, w = ω_w_prior)
     marginals[pad(:z,1)] = vague(GaussianMeanPrecision)
@@ -146,14 +146,11 @@ function infer(obs;
     fe = Vector{Float64}(undef, n_its)
     ##
     @showprogress "Iterations" for i = 1:n_its
+        stepS!(data, marginals)
         stepX!(data, marginals)
         stepZ!(data, marginals)
         stepA!(data, marginals)
-        stepS!(data, marginals)
-
-
-
-        # stepO!(data, marginals)
+        #stepO!(data, marginals)
         # stepK!(data, marginals)
         fe[i] = freeEnergy(data, marginals)
     end
