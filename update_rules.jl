@@ -19,12 +19,15 @@ export ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP,
 include("approximations/ghcubature.jl")
 include("approximations/srcubature.jl")
 
+category(p) = findmax(p)[2]
+
 function ϕ(z, κ, ω, s)
     ms = unsafeMean(s)
     mω, Vω = unsafeMeanCov(ω)
     mz, vz = unsafeMeanCov(z)
     mκ, Vκ = unsafeMeanCov(κ)
-    exp(-ms'*mκ*mz - ms'*mω + 0.5((ms'*mκ)^2*vz + mz^2*ms'*Vκ*ms + ms'*Vκ*ms*vz + ms'*Vω*ms))
+    select = category(ms)
+    exp(-mκ[select]*mz - mω[select] + 0.5((mκ[select])^2*vz + mz^2*Vκ[select,select] + Vκ[select,select]*vz + Vω[select]))
 end
 
 function ψ(yx)
@@ -52,9 +55,9 @@ function ruleSVBSwitchingGaussianControlledVariancePIn3PPP(dist_in1_in2::Probabi
     mκ, Vκ = unsafeMeanCov(dist_in4)
     mω, Vω = unsafeMeanCov(dist_in5)
     ms = unsafeMean(dist_in6)
-
+    select = category(ms)
     l_pdf(z) = begin
-        -0.5*(ms'*mκ*z + ψ(dist_in1_in2)*exp(-ms'*mκ*z - ms'*mω + 0.5*ms'*Vω*ms))
+        -0.5*(mκ[select]*z + ψ(dist_in1_in2)*exp(-mκ[select]*z -mω[select] + 0.5*Vω[select,select]))
     end
     Message(Univariate, Function, log_pdf = l_pdf, cubature = ghcubature(1, 20))
 
@@ -197,7 +200,6 @@ end
 function ruleMGaussianMeanPrecisionFGD(msg_out::Message{Function,Univariate},
                                        msg_mean::Message{F,Univariate},
                                        dist_prec::ProbabilityDistribution) where F<:Gaussian
-    println("JULIA SUCKS")
     d = dims(msg_mean.dist)
     m_mean,v_mean = unsafeMeanCov(msg_mean.dist)
     Wbar = unsafeMean(dist_prec)

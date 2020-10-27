@@ -7,7 +7,7 @@ using Plots
 using ProgressMeter
 using LinearAlgebra
 
-n_samples = 99
+n_samples = 400
 
 function generate_switches(n_samples)
     A_data = [0.9 0.1; 0.1 0.9] # Transition probabilities (some transitions are impossible)
@@ -28,14 +28,16 @@ end
 # switches = generate_switches(n_samples)
 # switches = [x[2]  for x in findmax.(switches)]
 switches = Array{Int64}(undef,n_samples)
-switches[1:25] .= 1;
-switches[26:60] .= 2;
-switches[61:n_samples] .= 1;
+switches[1:100] .= 1;
+switches[101:199] .= 2;
+switches[200:250] .= 1;
+switches[251:300] .= 2;
+switches[300:n_samples] .= 1;
 scatter(switches)
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
-    ωs = [-10.0, -2.0]
+    ωs = [1.0, -2.0]
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -57,12 +59,12 @@ function generate_swtiching_hgf(n_samples, switches)
 end
 
 x, std_x, z = generate_swtiching_hgf(n_samples, switches)
-obs = x .+ sqrt(0.1)*randn(length(x))
+obs = x .+ sqrt(0.0001)*randn(length(x))
 # using JLD
 # d = load("dump.jld")
 # x, std_x, categories, observations = d["state"], d["variance"], d["category"], d["observations"]
 
-pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,2,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
+pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
 function generate_algorithm(ndim, n_samples)
     fg = FactorGraph()
@@ -71,8 +73,6 @@ function generate_algorithm(ndim, n_samples)
     y = Vector{Variable}(undef, n_samples)
     s = Vector{Variable}(undef, n_samples)
     @RV A ~ Dirichlet(ones(2, 2))
-    @RV κ ~ GaussianMeanPrecision([1.0, 1.0], huge*diageye(2))
-    @RV ω ~ GaussianMeanPrecision([1.0, -2.0], huge*diageye(2))
     @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
     @RV [id=pad(:x,1)] x[1] ~ GaussianMeanPrecision(placeholder(:mx_prior1), placeholder(:wx_prior1))
     @RV [id=pad(:y,1)] y[1] ~ GaussianMeanPrecision(x[1], placeholder(:wy_prior1))
@@ -81,11 +81,11 @@ function generate_algorithm(ndim, n_samples)
     for t in 2:n_samples
         @RV [id=pad(:s,t)] s[t] ~ Transition(s[t-1], A)
         @RV [id=pad(:z,t)] z[t] ~ GaussianMeanPrecision(z[t - 1], placeholder(pad(:wz_transition, t)))
-        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],κ,ω,s[t])
+        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],[1.0, 1.0],[1.0, -2.0],s[t])
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
         placeholder(y[t], :y, index = t)
     end
-    q = PosteriorFactorization(x, z ,s, κ, ω, A, ids=[:X :Z :S :K :O :A])
+    q = PosteriorFactorization(x, z ,s, A, ids=[:X :Z :S :A])
     algo = messagePassingAlgorithm(free_energy=true)
     src_code = algorithmSourceCode(algo, free_energy=true);
     return src_code
@@ -99,7 +99,7 @@ function infer(obs;
     ndims = 2,
     wy_prior1 = 1.0,
     κ_m_prior = [1.0, 1.0],
-    ω_m_prior = [-10.0, -2.0],
+    ω_m_prior = [1.0, -2.0],
     κ_w_prior =  huge .* diageye(ndims),
     ω_w_prior = huge .* diageye(ndims),
     z_m_prior = 0.0,
@@ -107,11 +107,11 @@ function infer(obs;
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     x_x_m_prior = zeros(ndims),
-    x_x_w_prior = 100.0*diageye(ndims),
+    x_x_w_prior = 10.0*diageye(ndims),
     z_z_m_prior = zeros(ndims),
-    z_z_w_prior = 10.0*diageye(ndims),
+    z_z_w_prior = 100.0*diageye(ndims),
     z_w_transition_prior = 100.0,
-    y_w_transition_prior =  10.0,
+    y_w_transition_prior =  1/0.0001,
 )
 
     marginals = Dict()
@@ -125,7 +125,7 @@ function infer(obs;
         marginals[pad(:z,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = z_m_prior, w = z_w_prior)
         marginals[pad(:x,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = x_m_prior, w = x_w_prior)
         marginals[pad(:s,t)] = ProbabilityDistribution(Categorical, p = [0.5, 0.5])
-        marginals[pad(:s,t)*:_*pad(:s,t-1)] = ProbabilityDistribution(Contingency,p=[0.9 0.1; 0.1 0.9])
+        marginals[pad(:s,t)*:_*pad(:s,t-1)] = ProbabilityDistribution(Contingency,p=[0.5 0.5; 0.5 0.5])
         marginals[pad(:z,t)*:_*pad(:z,t-1)] = ProbabilityDistribution(ForneyLab.Multivariate,GaussianMeanPrecision, m = z_z_m_prior, w = z_z_w_prior)
         marginals[pad(:x,t)*:_*pad(:x,t-1)] = ProbabilityDistribution(ForneyLab.Multivariate,GaussianMeanPrecision, m = x_x_m_prior, w = x_x_w_prior)
     end
@@ -142,15 +142,15 @@ function infer(obs;
     end
 
 
-    n_its = 20
+    n_its = 10
     fe = Vector{Float64}(undef, n_its)
     ##
     @showprogress "Iterations" for i = 1:n_its
-        stepS!(data, marginals)
         stepX!(data, marginals)
         stepZ!(data, marginals)
         stepA!(data, marginals)
-        #stepO!(data, marginals)
+        stepS!(data, marginals)
+        # stepO!(data, marginals)
         # stepK!(data, marginals)
         fe[i] = freeEnergy(data, marginals)
     end
