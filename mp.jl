@@ -6,38 +6,19 @@ using LinearAlgebra
 using Plots
 using ProgressMeter
 using LinearAlgebra
+using Random
 
-n_samples = 400
+Random.seed!(42)
 
-function generate_switches(n_samples)
-    A_data = [0.9 0.1; 0.1 0.9] # Transition probabilities (some transitions are impossible)
-    s_0_data = [1.0, 0.0] # Initial state
-
-    # Generate some data
-    s_data = Vector{Vector{Float64}}(undef, n_samples) # one-hot encoding of the states
-    s_t_min_data = s_0_data
-    for t = 1:n_samples
-        a = A_data*s_t_min_data
-        println(a)
-        s_data[t] = sample(ProbabilityDistribution(Categorical, p=a./sum(a))) # Simulate state transition
-        s_t_min_data = s_data[t]
-    end
-    return s_data
-end
-#
-# switches = generate_switches(n_samples)
-# switches = [x[2]  for x in findmax.(switches)]
+n_samples = 100
 switches = Array{Int64}(undef,n_samples)
-switches[1:100] .= 1;
-switches[101:199] .= 2;
-switches[200:250] .= 1;
-switches[251:300] .= 2;
-switches[300:n_samples] .= 1;
-scatter(switches)
+switches[1:Int(round(n_samples/3))] .= 1;
+switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
+switches[2*Int(round(n_samples/3))+1:n_samples] .= 1;
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
-    ωs = [1.0, -2.0]
+    ωs = [-2.0 2.0]
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -58,8 +39,9 @@ function generate_swtiching_hgf(n_samples, switches)
     return x, std_x, z
 end
 
-x, std_x, z = generate_swtiching_hgf(n_samples, switches)
-obs = x .+ sqrt(0.0001)*randn(length(x))
+reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches)
+obs = reals .+ sqrt(0.01)*randn(length(reals))
+dims = 2
 # using JLD
 # d = load("dump.jld")
 # x, std_x, categories, observations = d["state"], d["variance"], d["category"], d["observations"]
@@ -81,7 +63,7 @@ function generate_algorithm(ndim, n_samples)
     for t in 2:n_samples
         @RV [id=pad(:s,t)] s[t] ~ Transition(s[t-1], A)
         @RV [id=pad(:z,t)] z[t] ~ GaussianMeanPrecision(z[t - 1], placeholder(pad(:wz_transition, t)))
-        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],[1.0, 1.0],[1.0, -2.0],s[t])
+        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],[1.0, 1.0],[-2.0, 2.0],s[t])
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
         placeholder(y[t], :y, index = t)
     end
@@ -99,7 +81,7 @@ function infer(obs;
     ndims = 2,
     wy_prior1 = 1.0,
     κ_m_prior = [1.0, 1.0],
-    ω_m_prior = [1.0, -2.0],
+    ω_m_prior = [-2.0, 2.0],
     κ_w_prior =  huge .* diageye(ndims),
     ω_w_prior = huge .* diageye(ndims),
     z_m_prior = 0.0,
@@ -111,7 +93,7 @@ function infer(obs;
     z_z_m_prior = zeros(ndims),
     z_z_w_prior = 100.0*diageye(ndims),
     z_w_transition_prior = 100.0,
-    y_w_transition_prior =  1/0.0001,
+    y_w_transition_prior =  1/0.01,
 )
 
     marginals = Dict()
@@ -142,7 +124,7 @@ function infer(obs;
     end
 
 
-    n_its = 10
+    n_its = 20
     fe = Vector{Float64}(undef, n_its)
     ##
     @showprogress "Iterations" for i = 1:n_its
@@ -166,11 +148,11 @@ end
 mz,vz,mx,vx,ms,fe = infer(obs)
 
 plot(mx, ribbon=sqrt.(vx))
-plot!(x)
+plot!(reals)
 scatter!(obs)
 
 plot(mz, ribbon=sqrt.(vz))
-plot!(z)
+plot!(upper_rw)
 
 categories = [x[2] for x in findmax.(ms)]
 scatter(categories)

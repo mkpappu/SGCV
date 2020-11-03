@@ -3,16 +3,19 @@ using ProgressMeter
 using GCV
 using Plots
 using SparseArrays
+using Random
+
+Random.seed!(42)
 
 n_samples = 100
 switches = Array{Int64}(undef,n_samples)
-switches[1:25] .= 2;
-switches[26:60] .= 2;
-switches[61:n_samples] .= 1;
+switches[1:Int(round(n_samples/3))] .= 1;
+switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
+switches[2*Int(round(n_samples/3))+1:n_samples] .= 1;
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
-    ωs = [2.0 -2.0]
+    ωs = [-2.0, 2.0]
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -38,16 +41,16 @@ obs = x .+ sqrt(0.1)*randn(length(x))
 
 fg = FactorGraph()
 
-ω1, ω2 = 2.0, -2.0
+ω1, ω2 = -2.0, 2.0
 
 @RV s_t_min ~ Categorical(placeholder(:m_s_t_min, dims=(2, )))
 @RV A ~ Dirichlet(placeholder(:A_t_min, dims=(2, 2)))
 @RV s_t ~ Transition(s_t_min, A)
 
-f(s) = (findmax(Array(s))[2] - 1)*ω1 + (2 - findmax(Array(s))[2])*ω2
-@RV ω ~ Nonlinear{Sampling}(s_t,g=f)
+f(s) = s[1]*ω1 + s[2]*ω2
+@RV ω ~ Nonlinear{Sampling}(s_t,g=f, n_samples=1000)
 @RV z_t_min ~ GaussianMeanPrecision(placeholder(:mz_t_min),placeholder(:wz_t_min))
-@RV z_t ~ GaussianMeanPrecision(z_t_min, 10.0)
+@RV z_t ~ GaussianMeanPrecision(z_t_min, 100.0)
 @RV x_t_min ~ GaussianMeanPrecision(placeholder(:mx_t_min),placeholder(:wx_t_min))
 @RV x_t ~ GaussianControlledVariance(x_t_min, z_t, 1.0, ω)
 @RV y_t ~ GaussianMeanPrecision(x_t, 10.0)
@@ -73,11 +76,11 @@ w_ω = Vector{Array{Float64}}(undef, n_samples)
 
 m_z_t_min, w_z_t_min = 0.0, 10.0
 s_ω_min, w_ω_min = vague(SampleList).params[:s], vague(SampleList).params[:w]
-m_x_t_min, w_x_t_min = 0.0, 10.0
+m_x_t_min, w_x_t_min = 0.0, 1.0
 m_s_min = Array([0.5, 0.5])
-A_min = [.7 .1; .3 .9]
+A_min = [100 1; 1 100]
 
-n_its = 10
+n_its = 50
 marginals_mf = Dict()
 F_mf = zeros(n_its,n_samples)
 @showprogress for t in 1:n_samples
@@ -95,6 +98,7 @@ F_mf = zeros(n_its,n_samples)
     marginals_mf[:z_t] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
     marginals_mf[:z_t_min] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=m_z_t_min, w=w_z_t_min)
     marginals_mf[:s_t_min] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
+    marginals_mf[:s_t] = ProbabilityDistribution(Categorical, p=Array(m_s_min))
     marginals_mf[:A] = ProbabilityDistribution(MatrixVariate, Dirichlet, a=A_min)
     marginals_mf[:ω] = ProbabilityDistribution(Univariate, SampleList, s=s_ω_min, w=w_ω_min)
     marginals_mf[:κ] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=1.0, w=huge)
@@ -102,11 +106,11 @@ F_mf = zeros(n_its,n_samples)
     # Execute algorithm
     for i = 1:n_its
         stepX!(data, marginals_mf)
-        stepZ!(data, marginals_mf)
         #stepΚ!(data, marginals_mf)
+        stepA!(data, marginals_mf)
         stepS0!(data, marginals_mf)
         stepS!(data, marginals_mf)
-        stepA!(data, marginals_mf)
+        stepZ!(data, marginals_mf)
         #stepΩ!(data, marginals_mf)
         F_mf[i,t] = freeEnergy(data, marginals_mf)
     end
@@ -135,7 +139,7 @@ end
 
 plot(m_z, ribbon=sqrt.(inv.(w_z)))
 plot!(z)
-plot!(std_x)
+#plot!(std_x)
 
 m_switches = [x[2] for x in findmax.(m_s)]
 scatter(m_switches)
