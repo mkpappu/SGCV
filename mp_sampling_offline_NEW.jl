@@ -76,11 +76,12 @@ pfz = PosteriorFactorization()
 q_A = PosteriorFactor(A, id=:A)
 
 q_s = Vector{PosteriorFactor}(undef, n_samples)
+q_z = Vector{PosteriorFactor}(undef, n_samples)
 q_x = Vector{PosteriorFactor}(undef, n_samples)
 for t in 1:n_samples
+    q_z[t] = PosteriorFactor(z[t],id=:Z_*t)
     q_s[t] = PosteriorFactor(s[t],id=:S_*t)
 end
-q_z = PosteriorFactor(z,id=:Z)
 q_x = PosteriorFactor(x,id=:X)
 # Compile algorithm
 algo_mf = messagePassingAlgorithm(id=:MF, free_energy=true)
@@ -103,29 +104,14 @@ for t in 1:n_samples
 
 end
 
-# import ForneyLab: differentialEntropy, unsafeMeanCov, cholinv, unsafeVar
-# export differentialEntropy, unsafeVar
-# function differentialEntropy(dist::ProbabilityDistribution{Univariate, SampleList})
-#         weights = dist.params[:w]
-#         samples = dist.params[:s]
-#
-#         (m, V) = unsafeMeanCov(dist)
-#         W = cholinv(V)
-#         d = length(m)
-#         t = [(s_i - m)'*W*(s_i - m) for s_i in samples]
-#         return 0.5*d*log(2*pi) -
-#                0.5*log(det(W)) +
-#                0.5*sum(weights.*t)
-# end
-
 # Run algorithm
 fe = []
 n_its = 100
 @showprogress for i in 1:n_its
     stepMFA!(data, marginals)
     stepMFX!(data, marginals)
-    stepMFZ!(data, marginals)
     for k in 1:n_samples
+        step!(:MFZ_*k, data, marginals)
         step!(:MFS_*k, data, marginals)
     end
     push!(fe, freeEnergyMF(data, marginals))

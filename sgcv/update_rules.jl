@@ -16,8 +16,8 @@ export ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP,
 
 
 
-include("approximations/ghcubature.jl")
-include("approximations/srcubature.jl")
+include("../approximations/ghcubature.jl")
+include("../approximations/srcubature.jl")
 
 category(p) = findmax(p)[2]
 

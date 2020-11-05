@@ -1,4 +1,4 @@
-include("SGCV.jl")
+include("sgcv/SGCV.jl")
 using Revise
 using Main.SGCV
 using ForneyLab
@@ -7,6 +7,7 @@ using Plots
 using ProgressMeter
 using LinearAlgebra
 using Random
+#include("compatibility.jl")
 
 Random.seed!(42)
 
@@ -42,9 +43,6 @@ end
 reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches)
 obs = reals .+ sqrt(0.01)*randn(length(reals))
 dims = 2
-# using JLD
-# d = load("dump.jld")
-# x, std_x, categories, observations = d["state"], d["variance"], d["category"], d["observations"]
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
@@ -73,10 +71,10 @@ function generate_algorithm(ndim, n_samples)
     return src_code
 end
 
+include("compatibility.jl")
 code = generate_algorithm(2, n_samples)
 eval(Meta.parse(code))
 
-# plot(x)
 function infer(obs;
     ndims = 2,
     wy_prior1 = 1.0,
@@ -97,12 +95,12 @@ function infer(obs;
 )
 
     marginals = Dict()
-    marginals[:A] = ProbabilityDistribution(ForneyLab.MatrixVariate, Dirichlet, a=ones(2, 2))#vague(Dirichlet, (2, 2))
+    marginals[:A] = ProbabilityDistribution(ForneyLab.MatrixVariate, Dirichlet, a=ones(2, 2))
     marginals[:κ] = ProbabilityDistribution(ForneyLab.Multivariate, GaussianMeanPrecision, m = κ_m_prior, w = κ_w_prior)
     marginals[:ω] = ProbabilityDistribution(ForneyLab.Multivariate, GaussianMeanPrecision, m = ω_m_prior, w = ω_w_prior)
     marginals[pad(:z,1)] = vague(GaussianMeanPrecision)
     marginals[pad(:x,1)] = vague(GaussianMeanPrecision)
-    marginals[pad(:s,1)] = vague(Categorical, 2)#ProbabilityDistribution(Categorical, p = [0.5, 0.5])
+    marginals[pad(:s,1)] = vague(Categorical, 2)
     for t = 2:n_samples
         marginals[pad(:z,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = z_m_prior, w = z_w_prior)
         marginals[pad(:x,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = x_m_prior, w = x_w_prior)
