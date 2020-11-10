@@ -46,7 +46,7 @@ dims = 2
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
-function generate_algorithm(ndim, n_samples)
+function generate_mp(ndim, n_samples)
     fg = FactorGraph()
     z = Vector{Variable}(undef, n_samples)
     x = Vector{Variable}(undef, n_samples)
@@ -74,7 +74,7 @@ end
 code = generate_algorithm(2, n_samples)
 eval(Meta.parse(code))
 
-function infer(obs;
+function mp(obs;
     ndims = 2,
     wy_prior1 = 1.0,
     κ_m_prior = [1.0, 1.0],
@@ -140,7 +140,7 @@ function infer(obs;
     return mz,vz,mx,vx,ms,fe
 end
 
-mz,vz,mx,vx,ms,fe = infer(obs)
+mz,vz,mx,vx,ms,fe = mp(obs)
 
 plot(mx, ribbon=sqrt.(vx))
 plot!(reals)
