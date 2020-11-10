@@ -39,7 +39,7 @@ function generate_swtiching_hgf(n_samples, switches)
 end
 
 reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches)
-obs = reals .+ sqrt(0.1)*randn(length(reals))
+obs = reals .+ sqrt(0.01)*randn(length(reals))
 dims = 2
 
 scatter(obs)
@@ -66,7 +66,7 @@ for t in 2:n_samples
     @RV [id=pad(:ω,t)] ω[t] ~ Nonlinear{Sampling}(s[t],g=f)
     @RV [id=pad(:z,t)] z[t] ~ GaussianMeanPrecision(z[t-1], 100.0)
     @RV [id=pad(:x,t)] x[t] ~ GaussianControlledVariance(x[t-1], z[t], 1.0, ω[t])
-    @RV y[t] ~ GaussianMeanPrecision(x[t], 10.0)
+    @RV y[t] ~ GaussianMeanPrecision(x[t], 100.0)
     placeholder(y[t], :y, index=t)
 end
 
@@ -102,21 +102,6 @@ for t in 1:n_samples
     marginals[pad(:z,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=0.0, w=100.0)
 
 end
-
-# import ForneyLab: differentialEntropy, unsafeMeanCov, cholinv, unsafeVar
-# export differentialEntropy, unsafeVar
-# function differentialEntropy(dist::ProbabilityDistribution{Univariate, SampleList})
-#         weights = dist.params[:w]
-#         samples = dist.params[:s]
-#
-#         (m, V) = unsafeMeanCov(dist)
-#         W = cholinv(V)
-#         d = length(m)
-#         t = [(s_i - m)'*W*(s_i - m) for s_i in samples]
-#         return 0.5*d*log(2*pi) -
-#                0.5*log(det(W)) +
-#                0.5*sum(weights.*t)
-# end
 
 # Run algorithm
 fe = []

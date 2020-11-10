@@ -13,7 +13,7 @@ n_samples = 10
 switches = Array{Int64}(undef,n_samples)
 switches[1:Int(round(n_samples/3))] .= 1;
 switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 1;
+switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
 
 function generate_swtiching_hgf(n_samples, switches)
     κs = [1.0, 1.0]
@@ -40,7 +40,7 @@ end
 
 reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches)
 obs = reals .+ sqrt(0.1)*randn(length(reals))
-dims = 2
+dims = 3
 
 scatter(obs)
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
@@ -54,8 +54,8 @@ z = Vector{Variable}(undef, n_samples)
 y = Vector{Variable}(undef, n_samples)
 
 
-ω1, ω2 = -2.0, 2.0
-f(s) = s[1]*ω1 + s[2]*ω2
+ω1, ω2, ω3 = -2.0, 2.0, 10.0
+f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
 @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(0.0, 100.0)
 @RV [id=pad(:s,1)] s[1] ~ Categorical(ones(dims)/dims)
 @RV A ~ Dirichlet(ones(dims, dims))

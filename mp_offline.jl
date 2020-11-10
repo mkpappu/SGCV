@@ -1,15 +1,15 @@
-include("sgcv/SGCV.jl")
 using Revise
-using Main.SGCV
 using ForneyLab
-using LinearAlgebra
+include("sgcv/SGCV.jl")
+using Main.SGCV
+using GCV
 using Plots
-using ProgressMeter
-using LinearAlgebra
+using SparseArrays
 using Random
-#include("compatibility.jl")
+using ProgressMeter
+include("compatibility.jl")
 
-Random.seed!(42)
+Random.seed!(100)
 
 n_samples = 100
 switches = Array{Int64}(undef,n_samples)
@@ -71,7 +71,6 @@ function generate_algorithm(ndim, n_samples)
     return src_code
 end
 
-include("compatibility.jl")
 code = generate_algorithm(2, n_samples)
 eval(Meta.parse(code))
 
@@ -130,8 +129,6 @@ function infer(obs;
         stepZ!(data, marginals)
         stepA!(data, marginals)
         stepS!(data, marginals)
-        # stepO!(data, marginals)
-        # stepK!(data, marginals)
         fe[i] = freeEnergy(data, marginals)
     end
 

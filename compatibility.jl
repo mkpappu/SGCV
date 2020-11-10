@@ -65,8 +65,9 @@ function inferUpdateRule!(entry::ScheduleEntry,
     outbounds = collect(keys(inferred_outbound_types))
     for i in 1:length(outbounds)
         if occursin(string(:switchinggaussiancontrolledvariance_), string(outbounds[i].node.id)) && length(applicable_rules) > 1
-            filter!(e -> e≠SPEqualityFnG, applicable_rules)
-            filter!(e -> e≠SVBGaussianMeanPrecisionMEND, applicable_rules)
+            # filter!(e -> e≠SPEqualityFnG, applicable_rules)
+            # filter!(e -> e≠SVBGaussianMeanPrecisionMEND, applicable_rules)
+            applicable_rules = [SVBGaussianMeanPrecisionMEND]
             break
         elseif occursin(string(:gaussiancontrolledvariance_), string(outbounds[i].node.id)) && length(applicable_rules) > 1
             filter!(e -> e≠SPEqualityFnG, applicable_rules)
@@ -100,7 +101,6 @@ function inferMarginalRule(cluster::Cluster, inbound_types::Vector{<:Type})
             push!(applicable_rules, rule)
         end
     end
-
     if MGaussianMeanPrecisionEGD in applicable_rules && length(applicable_rules) > 1
         filter!(e -> e≠MGaussianMeanPrecisionEGD, applicable_rules)
     end
