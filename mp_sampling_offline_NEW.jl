@@ -7,18 +7,9 @@ using SparseArrays
 using Random
 include("compatibility.jl")
 
-Random.seed!(10)
 
-n_samples = 100
-switches = Array{Int64}(undef,n_samples)
-switches[1:Int(round(n_samples/3))] .= 1;
-switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 1;
-
-
-function generate_swtiching_hgf(n_samples, switches)
-    κs = [1.0, 1.0]
-    ωs = [-2.0 2.0]
+function generate_swtiching_hgf(n_samples, switches, ωs)
+    κs = ones(length(omegas))
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -34,19 +25,15 @@ function generate_swtiching_hgf(n_samples, switches)
         elseif switches[i] == 2
             push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
             x[i] = x[i - 1] + std_x[end]*randn()
+        elseif switches[i] == 3
+            push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
+            x[i] = x[i - 1] + std_x[end]*randn()
         end
     end
     return x, std_x, z
 end
 
-reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches)
-obs = reals .+ sqrt(0.01)*randn(length(reals))
-dims = 2
-
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
-
-ω1, ω2 = -2.0, 2.0
-f(s) = s[1]*ω1 + s[2]*ω2
 
 function generate_sampler(dims, n_samples)
 
@@ -58,9 +45,6 @@ function generate_sampler(dims, n_samples)
     z = Vector{Variable}(undef, n_samples)
     y = Vector{Variable}(undef, n_samples)
 
-
-    ω1, ω2 = -2.0, 2.0
-    f(s) = s[1]*ω1 + s[2]*ω2
     @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
     @RV [id=pad(:s,1)] s[1] ~ Categorical(ones(dims)/dims)
     @RV A ~ Dirichlet(ones(dims, dims))
@@ -95,15 +79,11 @@ function generate_sampler(dims, n_samples)
     return src_code
 end
 
-code = generate_sampler(2, n_samples)
-
-eval(Meta.parse(code))
-
 
 function mp_sampler(obs;
-    dims = 2,
-    κ_m_prior = [1.0, 1.0],
-    ω_m_prior = [-2.0, 2.0],
+    dims,
+    κ_m_prior = ones(dims),
+    ω_m_prior = omegas,
     z_m_prior = 0.0,
     z_w_prior = 100.0,
     x_m_prior = 0.0,
@@ -113,7 +93,7 @@ function mp_sampler(obs;
 )
 
     # Initial posterior factors
-    marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (2,2)))
+    marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (dims,dims)))
     for t in 1:n_samples
         marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=0.5*ones(dims))
         marginals[pad(:ω,t)] = vague(SampleList)
@@ -154,11 +134,30 @@ function mp_sampler(obs;
     return mz,vz,mx,vx,ms,fe
 end
 
-mz,vz,mx,vx,ms,fe = mp_sampler(obs)
+Random.seed!(100)
+
+n_samples = 100
+switches = Array{Int64}(undef,n_samples)
+switches[1:Int(round(n_samples/3))] .= 1;
+switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
+switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
+
+dims = 3
+omegas = [-2.0, 2.0, 5.0]
+reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
+obs = reals .+ sqrt(0.01)*randn(length(reals))
+
+ω1, ω2, ω3 = omegas[1], omegas[2], omegas[3]
+f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
+
+code = generate_sampler(dims, n_samples)
+eval(Meta.parse(code))
+
+mz,vz,mx,vx,ms,fe = mp_sampler(dims=3, obs)
 
 plot(mz, ribbon=sqrt.((vz)))
 plot!(upper_rw)
-#plot!(std_x)
+plot!(std_x)
 
 m_switches = [x[2] for x in findmax.(ms)]
 scatter(m_switches)
