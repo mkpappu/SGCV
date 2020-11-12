@@ -7,35 +7,7 @@ using SparseArrays
 using Random
 include("compatibility.jl")
 
-function generate_swtiching_hgf(n_samples, switches, ωs)
-    κs = ones(length(omegas))
-    z = Vector{Float64}(undef, n_samples)
-    x = Vector{Float64}(undef, n_samples)
-    z[1] = 0.0
-    x[1] = 0.0
-    rw = 0.01
-    std_x = []
-
-    for i in 2:n_samples
-        z[i] = z[i - 1] + sqrt(rw)*randn()
-        if switches[i] == 1
-            push!(std_x, sqrt(exp(κs[1]*z[i] + ωs[1])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 2
-            push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 3
-            push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        end
-    end
-    return x, std_x, z
-end
-
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
-
-ω1, ω2 = -2.0, 2.0
-f(s) = s[1]*ω1 + s[2]*ω2
 
 function generate_sampler(dims, n_samples)
 
@@ -80,10 +52,6 @@ function generate_sampler(dims, n_samples)
     return src_code
 end
 
-code = generate_sampler(2, n_samples)
-
-eval(Meta.parse(code))
-
 function mp_sampler(obs;
     dims,
     κ_m_prior = ones(dims),
@@ -93,7 +61,7 @@ function mp_sampler(obs;
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     z_w_transition_prior = 100.0,
-    y_w_transition_prior =  1/0.01,
+    y_w_transition_prior =  1/mnv,
 )
 
     # Initial posterior factors
@@ -139,16 +107,7 @@ function mp_sampler(obs;
     return mz,vz,mx,vx,ms,fe
 end
 
-n_samples = 100
-switches = Array{Int64}(undef,n_samples)
-switches[1:Int(round(n_samples/3))] .= 1;
-switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
-
-dims = 3
-omegas = [-2.0, 2.0, 5.0]
-reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
-obs = reals .+ sqrt(0.01)*randn(length(reals))
+include("generator.jl")
 
 ω1, ω2, ω3 = omegas[1], omegas[2], omegas[3]
 f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
@@ -156,7 +115,7 @@ f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
 code = generate_sampler(dims, n_samples)
 eval(Meta.parse(code))
 
-mz,vz,mx,vx,ms,fe = mp_sampler(obs)
+mz,vz,mx,vx,ms,fe = mp_sampler(dims=dims, obs)
 
 plot(mz, ribbon=sqrt.((vz)))
 plot!(upper_rw)

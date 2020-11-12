@@ -9,31 +9,6 @@ using Random
 using ProgressMeter
 include("compatibility.jl")
 
-function generate_swtiching_hgf(n_samples, switches, ωs)
-    κs = ones(length(omegas))
-    z = Vector{Float64}(undef, n_samples)
-    x = Vector{Float64}(undef, n_samples)
-    z[1] = 0.0
-    x[1] = 0.0
-    rw = 0.01
-    std_x = []
-
-    for i in 2:n_samples
-        z[i] = z[i - 1] + sqrt(rw)*randn()
-        if switches[i] == 1
-            push!(std_x, sqrt(exp(κs[1]*z[i] + ωs[1])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 2
-            push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 3
-            push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        end
-    end
-    return x, std_x, z
-end
-
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
@@ -78,7 +53,7 @@ function mp(obs;
     z_z_m_prior = zeros(ndims),
     z_z_w_prior = 100.0*diageye(ndims),
     z_w_transition_prior = 100.0,
-    y_w_transition_prior =  1/0.01,
+    y_w_transition_prior =  1/mnv,
 )
 
     marginals = Dict()
@@ -129,18 +104,8 @@ function mp(obs;
     return mz,vz,mx,vx,ms,fe
 end
 
-Random.seed!(100)
+include("generator.jl")
 
-n_samples = 100
-switches = Array{Int64}(undef,n_samples)
-switches[1:Int(round(n_samples/3))] .= 1;
-switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
-
-dims = 3
-omegas = [-2.0, 2.0, 5.0]
-reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
-obs = reals .+ sqrt(0.01)*randn(length(reals))
 
 code = generate_mp(dims, n_samples)
 eval(Meta.parse(code))

@@ -89,7 +89,7 @@ function mp_sampler(obs;
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     z_w_transition_prior = 100.0,
-    y_w_transition_prior =  1/0.01,
+    y_w_transition_prior =  1/mnv,
 )
 
     # Initial posterior factors
@@ -134,18 +134,7 @@ function mp_sampler(obs;
     return mz,vz,mx,vx,ms,fe
 end
 
-Random.seed!(100)
-
-n_samples = 100
-switches = Array{Int64}(undef,n_samples)
-switches[1:Int(round(n_samples/3))] .= 1;
-switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
-
-dims = 3
-omegas = [-2.0, 2.0, 5.0]
-reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
-obs = reals .+ sqrt(0.01)*randn(length(reals))
+include("generator.jl")
 
 ω1, ω2, ω3 = omegas[1], omegas[2], omegas[3]
 f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
