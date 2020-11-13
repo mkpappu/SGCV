@@ -25,10 +25,11 @@ end
 
 # NOTE: Ask Ismail
 
-Random.seed!(100)
+Random.seed!(42)
 
-mnv = 0.01
-omegas = [-2.0, 2.0, 5.0]
+
+mnv = 0.001
+omegas = [-5.0, -2.0, 0.0]
 dims = length(omegas)
 
 n_samples = 100

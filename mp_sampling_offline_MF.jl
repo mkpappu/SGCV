@@ -8,31 +8,6 @@ using Random
 include("compatibility.jl")
 
 
-function generate_swtiching_hgf(n_samples, switches, ωs)
-    κs = ones(length(omegas))
-    z = Vector{Float64}(undef, n_samples)
-    x = Vector{Float64}(undef, n_samples)
-    z[1] = 0.0
-    x[1] = 0.0
-    rw = 0.01
-    std_x = []
-
-    for i in 2:n_samples
-        z[i] = z[i - 1] + sqrt(rw)*randn()
-        if switches[i] == 1
-            push!(std_x, sqrt(exp(κs[1]*z[i] + ωs[1])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 2
-            push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 3
-            push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        end
-    end
-    return x, std_x, z
-end
-
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
 function generate_sampler(dims, n_samples)
@@ -95,7 +70,7 @@ function mp_sampler(obs;
     # Initial posterior factors
     marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (dims,dims)))
     for t in 1:n_samples
-        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=0.5*ones(dims))
+        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=ones(dims) ./ dims)
         marginals[pad(:ω,t)] = vague(SampleList)
         marginals[pad(:x,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=x_w_prior, w=x_w_prior)
         marginals[pad(:z,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=z_m_prior, w=z_w_prior)
@@ -116,11 +91,11 @@ function mp_sampler(obs;
     fe = []
     n_its = 100
     @showprogress for i in 1:n_its
-        stepMFA!(data, marginals)
         stepMFX!(data, marginals)
+        stepMFA!(data, marginals)
         for k in 1:n_samples
-            step!(:MFZ_*k, data, marginals)
             step!(:MFS_*k, data, marginals)
+            step!(:MFZ_*k, data, marginals)
         end
         push!(fe, freeEnergyMF(data, marginals))
     end
@@ -146,7 +121,7 @@ mz,vz,mx,vx,ms,fe = mp_sampler(dims=3, obs)
 
 plot(mz, ribbon=sqrt.((vz)))
 plot!(upper_rw)
-plot!(std_x)
+#plot!(std_x)
 
 m_switches = [x[2] for x in findmax.(ms)]
 scatter(m_switches)

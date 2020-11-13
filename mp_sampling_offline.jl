@@ -67,7 +67,7 @@ function mp_sampler(obs;
     # Initial posterior factors
     marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (dims,dims)))
     for t in 1:n_samples
-        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=0.5*ones(dims))
+        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=ones(dims) ./ dims)
         marginals[pad(:ω,t)] = vague(SampleList)
         marginals[pad(:x,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=x_w_prior, w=x_w_prior)
         marginals[pad(:z,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=z_m_prior, w=z_w_prior)
@@ -89,12 +89,12 @@ function mp_sampler(obs;
     fe = []
     n_its = 100
     @showprogress for i in 1:n_its
-        stepMFA!(data, marginals)
         stepMFX!(data, marginals)
-        stepMFZ!(data, marginals)
+        stepMFA!(data, marginals)
         for k in 1:n_samples
             step!(:MFS_*k, data, marginals)
         end
+        stepMFZ!(data, marginals)
         push!(fe, freeEnergyMF(data, marginals))
     end
     ;

@@ -31,6 +31,18 @@ function generate_mp(ndim, n_samples)
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
         placeholder(y[t], :y, index = t)
     end
+    #q = PosteriorFactorization()
+
+    # q_A = PosteriorFactor(A, id=:A)
+    #
+    # q_s = Vector{PosteriorFactor}(undef, n_samples)
+    # q_z = Vector{PosteriorFactor}(undef, n_samples)
+    # q_x = Vector{PosteriorFactor}(undef, n_samples)
+    # for t in 1:n_samples
+    #     q_z[t] = PosteriorFactor(z[t],id=:Z_*t)
+    #     q_s[t] = PosteriorFactor(s[t],id=:S_*t)
+    # end
+    # q_x = PosteriorFactor(x,id=:X)
     q = PosteriorFactorization(x, z ,s, A, ids=[:X :Z :S :A])
     algo = messagePassingAlgorithm(free_energy=true)
     src_code = algorithmSourceCode(algo, free_energy=true);
@@ -49,7 +61,7 @@ function mp(obs;
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     x_x_m_prior = zeros(ndims),
-    x_x_w_prior = 10.0*diageye(ndims),
+    x_x_w_prior = 1.0*diageye(ndims),
     z_z_m_prior = zeros(ndims),
     z_z_w_prior = 100.0*diageye(ndims),
     z_w_transition_prior = 100.0,
@@ -66,8 +78,8 @@ function mp(obs;
     for t = 2:n_samples
         marginals[pad(:z,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = z_m_prior, w = z_w_prior)
         marginals[pad(:x,t)] = ProbabilityDistribution(ForneyLab.Univariate, GaussianMeanPrecision, m = x_m_prior, w = x_w_prior)
-        marginals[pad(:s,t)] = ProbabilityDistribution(Categorical, p = 0.5*ones(ndims))
-        marginals[pad(:s,t)*:_*pad(:s,t-1)] = ProbabilityDistribution(Contingency,p=0.5*ones(ndims, ndims))
+        marginals[pad(:s,t)] = ProbabilityDistribution(Categorical, p = ones(ndims) ./ ndims)
+        marginals[pad(:s,t)*:_*pad(:s,t-1)] = ProbabilityDistribution(Contingency,p=ones(ndims, ndims) ./ ndims)
         marginals[pad(:z,t)*:_*pad(:z,t-1)] = ProbabilityDistribution(ForneyLab.Multivariate,GaussianMeanPrecision, m = z_z_m_prior, w = z_z_w_prior)
         marginals[pad(:x,t)*:_*pad(:x,t-1)] = ProbabilityDistribution(ForneyLab.Multivariate,GaussianMeanPrecision, m = x_x_m_prior, w = x_x_w_prior)
     end
@@ -85,14 +97,18 @@ function mp(obs;
     end
 
 
-    n_its = 20
+    n_its = 10
     fe = Vector{Float64}(undef, n_its)
     ##
     @showprogress "Iterations" for i = 1:n_its
         stepX!(data, marginals)
-        stepZ!(data, marginals)
         stepA!(data, marginals)
         stepS!(data, marginals)
+        stepZ!(data, marginals)
+        # for k in 1:n_samples
+        #     step!(:S_*k, data, marginals)
+        #     step!(:Z_*k, data, marginals)
+        # end
         fe[i] = freeEnergy(data, marginals)
     end
 
@@ -105,7 +121,6 @@ function mp(obs;
 end
 
 include("generator.jl")
-
 
 code = generate_mp(dims, n_samples)
 eval(Meta.parse(code))
@@ -123,4 +138,4 @@ categories = [x[2] for x in findmax.(ms)]
 scatter(categories)
 scatter!(switches)
 
-plot(fe)
+plot(fe[3:end])
