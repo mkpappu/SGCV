@@ -1,5 +1,7 @@
+using Random
+
 function generate_swtiching_hgf(n_samples, switches, ωs)
-    κs = ones(length(omegas))
+    κs = ones(length(ωs))
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
@@ -37,23 +39,26 @@ generate_mnv(dB, ωs) = exp(minimum(ωs))/(10^(dB/10))
 function generate_switches(n_switches, n_cats, n_samples)
     d = Dict(zip(collect(1:n_cats), ones(n_cats)))
     switches = Array{Int64}(undef,n_samples)
-    # TODO: improve cats initialization
-    switches[1:Int(round(n_samples/n_switches))] .= 1;
-    switches[Int(round(n_samples/n_switches))+1:2*Int(round(n_samples/n_switches))] .= 2;
-    switches[2*Int(round(n_samples/n_switches))+1:3*Int(round(n_samples/n_switches))] .= 2;
-    switches[3*Int(round(n_samples/n_switches))+1:n_samples] .= 3;
+    sequences = [[1, 1, 2, 3], [1, 2, 2, 3], [1, 3, 2, 2], [1, 3, 2, 3],
+                 [2, 1, 1,  3], [2, 2, 3, 1], [2, 3, 1, 2], [2, 3, 1, 3],
+                 [3, 2, 2, 1], [3, 3, 1, 2], [3, 1, 2, 3], [3, 2, 3, 1]]
+    sequence = sequences[rand(collect(1:length(sequences)))]
+    switches[1:Int(round(n_samples/n_switches))] .= sequence[1]
+    switches[Int(round(n_samples/n_switches))+1:2*Int(round(n_samples/n_switches))] .= sequence[2]
+    switches[2*Int(round(n_samples/n_switches))+1:3*Int(round(n_samples/n_switches))] .= sequence[3]
+    switches[3*Int(round(n_samples/n_switches))+1:n_samples] .= sequence[2];
     return  switches
 end
 
 
 Random.seed!(42)
-n_datasets = 100
+n_datasets = 2
+n_samples = 100
+n_cats = 3
+dB = 15
+n_switches = 4
 dataset = Dict()
 for i in 1:n_datasets
-    n_cats = 3
-    dB = 15
-    n_samples = 200
-    n_switches = 4
 
     switches = generate_switches(n_switches, n_cats, n_samples)
     omegas = generate_ω(n_cats)

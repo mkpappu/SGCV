@@ -31,18 +31,6 @@ function generate_mp(ndim, n_samples)
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
         placeholder(y[t], :y, index = t)
     end
-    #q = PosteriorFactorization()
-
-    # q_A = PosteriorFactor(A, id=:A)
-    #
-    # q_s = Vector{PosteriorFactor}(undef, n_samples)
-    # q_z = Vector{PosteriorFactor}(undef, n_samples)
-    # q_x = Vector{PosteriorFactor}(undef, n_samples)
-    # for t in 1:n_samples
-    #     q_z[t] = PosteriorFactor(z[t],id=:Z_*t)
-    #     q_s[t] = PosteriorFactor(s[t],id=:S_*t)
-    # end
-    # q_x = PosteriorFactor(x,id=:X)
     q = PosteriorFactorization(x, z ,s, A, ids=[:X :Z :S :A])
     algo = messagePassingAlgorithm(free_energy=true)
     src_code = algorithmSourceCode(algo, free_energy=true);
@@ -51,6 +39,7 @@ end
 
 function mp(obs;
     ndims,
+    n_its = 50,
     wy_prior1 = 1.0,
     κ_m_prior = ones(ndims),
     ω_m_prior = omegas,
@@ -91,13 +80,12 @@ function mp(obs;
     data[:wx_prior1] = x_w_prior
     data[:wy_prior1] = wy_prior1
     for t = 1:n_samples
-        data[pad(:ωs, t)] = omegas
+        data[pad(:ωs, t)] = ω_m_prior
         data[pad(:wz_transition, t)] = z_w_transition_prior
         data[pad(:wy_transition, t)] = y_w_transition_prior
     end
 
 
-    n_its = 10
     fe = Vector{Float64}(undef, n_its)
     ##
     @showprogress "Iterations" for i = 1:n_its
@@ -105,10 +93,6 @@ function mp(obs;
         stepA!(data, marginals)
         stepS!(data, marginals)
         stepZ!(data, marginals)
-        # for k in 1:n_samples
-        #     step!(:S_*k, data, marginals)
-        #     step!(:Z_*k, data, marginals)
-        # end
         fe[i] = freeEnergy(data, marginals)
     end
 
@@ -122,11 +106,25 @@ end
 
 include("generator.jl")
 
-code = generate_mp(dims, n_samples)
+code = generate_mp(n_cats, n_samples)
 eval(Meta.parse(code))
+results = Dict()
+@showprogress "Datasets" for i in 1:length(dataset)
+    obs = dataset[i]["obs"]
+    mnv = dataset[i]["nv"]
+    mz,vz,mx,vx,ms,fe = mp(obs, ndims=n_cats, ω_m_prior=dataset[i]["ωs"],
+                           y_w_transition_prior=1/mnv)
+    results[i] = Dict("mz" => mz, "vz" => vz,
+                      "mx" => mx, "vx" => vx,
+                      "ms" => ms, "fe" => fe)
+end
 
-mz,vz,mx,vx,ms,fe = mp(obs, ndims=dims)
-
+index = 1
+mz, vz, mx, vx, ms, fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["fe"]
+reals = dataset[index]["reals"]
+obs = dataset[index]["obs"]
+upper_rw = dataset[index]["rw"]
+switches = dataset[index]["switches"]
 plot(mx, ribbon=sqrt.(vx))
 plot!(reals)
 scatter!(obs)

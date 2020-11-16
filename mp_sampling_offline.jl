@@ -9,7 +9,7 @@ include("compatibility.jl")
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
-function generate_sampler(dims, n_samples)
+function generate_sampler(ndims, n_samples)
 
     fg = FactorGraph()
 
@@ -20,8 +20,8 @@ function generate_sampler(dims, n_samples)
     y = Vector{Variable}(undef, n_samples)
 
     @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
-    @RV [id=pad(:s,1)] s[1] ~ Categorical(ones(dims)/dims)
-    @RV A ~ Dirichlet(ones(dims, dims))
+    @RV [id=pad(:s,1)] s[1] ~ Categorical(ones(ndims)/ndims)
+    @RV A ~ Dirichlet(ones(ndims, ndims))
     @RV [id=pad(:x,1)] x[1] ~ GaussianMeanPrecision(placeholder(:mx_prior1), placeholder(:wx_prior1))
     for t in 2:n_samples
         global s_t_min, x_t_min, z_t_min
@@ -53,9 +53,8 @@ function generate_sampler(dims, n_samples)
 end
 
 function mp_sampler(obs;
-    dims,
-    κ_m_prior = ones(dims),
-    ω_m_prior = omegas,
+    ndims,
+    κ_m_prior = ones(ndims),
     z_m_prior = 0.0,
     z_w_prior = 100.0,
     x_m_prior = 0.0,
@@ -65,9 +64,9 @@ function mp_sampler(obs;
 )
 
     # Initial posterior factors
-    marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (dims,dims)))
+    marginals = Dict{Symbol, ProbabilityDistribution}(:A => vague(Dirichlet, (ndims,ndims)))
     for t in 1:n_samples
-        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=ones(dims) ./ dims)
+        marginals[pad(:s,t)] = ProbabilityDistribution(Univariate, Categorical, p=ones(ndims) ./ ndims)
         marginals[pad(:ω,t)] = vague(SampleList)
         marginals[pad(:x,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=x_w_prior, w=x_w_prior)
         marginals[pad(:z,t)] = ProbabilityDistribution(Univariate, GaussianMeanPrecision, m=z_m_prior, w=z_w_prior)
@@ -109,24 +108,42 @@ end
 
 include("generator.jl")
 
-ω1, ω2, ω3 = omegas[1], omegas[2], omegas[3]
+# dummies
+ω1, ω2, ω3 = 0, 0, 0
 f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
-
-code = generate_sampler(dims, n_samples)
+code = generate_sampler(n_cats, n_samples)
 eval(Meta.parse(code))
 
-mz,vz,mx,vx,ms,fe = mp_sampler(dims=dims, obs)
+results = Dict()
+@showprogress "Datasets" for i in 1:length(dataset)
+    obs = dataset[i]["obs"]
+    mnv = dataset[i]["nv"]
+    ωs = dataset[i]["ωs"]
+    ω1, ω2, ω3 = ωs[1], ωs[2], ωs[3]
+    f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
 
-plot(mz, ribbon=sqrt.((vz)))
-plot!(upper_rw)
-plot!(std_x)
+    mz,vz,mx,vx,ms,fe = mp_sampler(obs, ndims=n_cats,
+                           y_w_transition_prior=1/mnv)
+    results[i] = Dict("mz" => mz, "vz" => vz,
+                      "mx" => mx, "vx" => vx,
+                      "ms" => ms, "fe" => fe)
+end
 
-m_switches = [x[2] for x in findmax.(ms)]
-scatter(m_switches)
-scatter!(switches)
-
+index = 1
+mz, vz, mx, vx, ms, fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["fe"]
+reals = dataset[index]["reals"]
+obs = dataset[index]["obs"]
+upper_rw = dataset[index]["rw"]
+switches = dataset[index]["switches"]
 plot(mx, ribbon=sqrt.(vx))
 plot!(reals)
 scatter!(obs)
 
-plot(fe)
+plot(mz, ribbon=sqrt.(vz))
+plot!(upper_rw)
+
+categories = [x[2] for x in findmax.(ms)]
+scatter(categories)
+scatter!(switches)
+
+plot(fe[3:end])
