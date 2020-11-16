@@ -23,21 +23,44 @@ function generate_swtiching_hgf(n_samples, switches, ωs)
     return x, std_x, z
 end
 
-# NOTE: Ask Ismail
+function generate_ω(num_ω)
+    ωs = [rand(collect(-9:0))]
+    step = rand([2, 3, 4])
+    for i in 2:num_ω
+        push!(ωs, ωs[end] + step)
+    end
+    return ωs
+end
+
+generate_mnv(dB, ωs) = exp(minimum(ωs))/(10^(dB/10))
+
+function generate_switches(n_switches, n_cats, n_samples)
+    d = Dict(zip(collect(1:n_cats), ones(n_cats)))
+    switches = Array{Int64}(undef,n_samples)
+    # TODO: improve cats initialization
+    switches[1:Int(round(n_samples/n_switches))] .= 1;
+    switches[Int(round(n_samples/n_switches))+1:2*Int(round(n_samples/n_switches))] .= 2;
+    switches[2*Int(round(n_samples/n_switches))+1:3*Int(round(n_samples/n_switches))] .= 2;
+    switches[3*Int(round(n_samples/n_switches))+1:n_samples] .= 3;
+    return  switches
+end
+
 
 Random.seed!(42)
+n_datasets = 100
+dataset = Dict()
+for i in 1:n_datasets
+    n_cats = 3
+    dB = 15
+    n_samples = 200
+    n_switches = 4
 
-
-mnv = 0.001
-omegas = [-5.0, -2.0, 0.0]
-dims = length(omegas)
-
-n_samples = 100
-switches = Array{Int64}(undef,n_samples)
-switches[1:Int(round(n_samples/3))] .= 1;
-switches[Int(round(n_samples/3))+1:2*Int(round(n_samples/3))] .= 2;
-switches[2*Int(round(n_samples/3))+1:n_samples] .= 3;
-
-
-reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
-obs = reals .+ sqrt(mnv)*randn(length(reals))
+    switches = generate_switches(n_switches, n_cats, n_samples)
+    omegas = generate_ω(n_cats)
+    mnv = generate_mnv(dB, omegas)
+    reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
+    obs = reals .+ sqrt(mnv)*randn(length(reals))
+    dataset[i] = Dict("switches" => switches, "ωs" => omegas, "nv" => mnv,
+                      "reals" => reals, "std_x" => std_x, "rw" => upper_rw,
+                      "obs" => obs)
+end
