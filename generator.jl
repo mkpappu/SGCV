@@ -53,13 +53,13 @@ end
 
 Random.seed!(42)
 n_datasets = 2
-n_samples = 100
+n_samples = 10
 n_cats = 3
 dB = 15
 n_switches = 4
 dataset = Dict()
 for i in 1:n_datasets
-
+    local switches, reals, omegas, mnv, upper_rw, std_x, obs
     switches = generate_switches(n_switches, n_cats, n_samples)
     omegas = generate_ω(n_cats)
     mnv = generate_mnv(dB, omegas)

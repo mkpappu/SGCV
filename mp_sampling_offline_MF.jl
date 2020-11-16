@@ -111,8 +111,10 @@ end
 include("generator.jl")
 
 # dummies
-ω1, ω2, ω3 = 0, 0, 0
-f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
+ω1 = Ref(0)
+ω2 = Ref(0)
+ω3 = Ref(0)
+f(s) = s[1]*ω1[] + s[2]*ω2[] +s[3]*ω3[]
 code = generate_sampler(n_cats, n_samples)
 eval(Meta.parse(code))
 
@@ -121,8 +123,7 @@ results = Dict()
     obs = dataset[i]["obs"]
     mnv = dataset[i]["nv"]
     ωs = dataset[i]["ωs"]
-    ω1, ω2, ω3 = ωs[1], ωs[2], ωs[3]
-    f(s) = s[1]*ω1 + s[2]*ω2 +s[3]*ω3
+    ω1[], ω2[], ω3[] = ωs[1], ωs[2], ωs[3]
 
     mz,vz,mx,vx,ms,fe = mp_sampler(obs, ndims=n_cats,
                            y_w_transition_prior=1/mnv)
