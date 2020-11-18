@@ -1,12 +1,11 @@
 using Random
 
-function generate_swtiching_hgf(n_samples, switches, ωs)
+function generate_swtiching_hgf(n_samples, switches, ωs, rw)
     κs = ones(length(ωs))
     z = Vector{Float64}(undef, n_samples)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
     x[1] = 0.0
-    rw = 0.01
     std_x = []
 
     stationary = false
@@ -61,10 +60,10 @@ end
 
 
 Random.seed!(42)
-n_datasets = 10
+n_datasets = 3
 n_samples = 500
 n_cats = 3
-dB = 1.0
+dB = 10.0
 n_switches = 4
 dataset = Dict()
 for i in 1:n_datasets
@@ -72,9 +71,11 @@ for i in 1:n_datasets
     switches = generate_switches(n_switches, n_cats, n_samples)
     omegas = generate_ω(n_cats)
     mnv = generate_mnv(dB, omegas)
-    reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas)
+    variance = 0.001
+    reals, std_x, upper_rw = generate_swtiching_hgf(n_samples, switches, omegas,variance)
     obs = reals .+ sqrt(mnv)*randn(length(reals))
+
     dataset[i] = Dict("switches" => switches, "ωs" => omegas, "nv" => mnv,
                       "reals" => reals, "std_x" => std_x, "rw" => upper_rw,
-                      "obs" => obs)
+                      "obs" => obs, "var_top" => variance)
 end
