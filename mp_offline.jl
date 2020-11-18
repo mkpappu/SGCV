@@ -87,12 +87,14 @@ function mp(obs;
 
 
     fe = Vector{Float64}(undef, n_its)
-    ##
+
     @showprogress "Iterations" for i = 1:n_its
+
         stepX!(data, marginals)
-        stepA!(data, marginals)
         stepS!(data, marginals)
+        stepA!(data, marginals)
         stepZ!(data, marginals)
+
         fe[i] = freeEnergy(data, marginals)
     end
 
@@ -109,7 +111,7 @@ include("generator.jl")
 code = generate_mp(n_cats, n_samples)
 eval(Meta.parse(code))
 results = Dict()
-@showprogress "Datasets" for i in 1:length(dataset)
+@showprogress "Datasets" for i in 1:n_datasets 
     obs = dataset[i]["obs"]
     mnv = dataset[i]["nv"]
     mz,vz,mx,vx,ms,fe = mp(obs, ndims=n_cats, ω_m_prior=dataset[i]["ωs"],
@@ -119,7 +121,8 @@ results = Dict()
                       "ms" => ms, "fe" => fe)
 end
 
-index = 2
+index = 4
+
 mz, vz, mx, vx, ms, fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["fe"]
 reals = dataset[index]["reals"]
 obs = dataset[index]["obs"]
@@ -134,6 +137,20 @@ plot!(upper_rw)
 
 categories = [x[2] for x in findmax.(ms)]
 scatter(categories)
-scatter!(switches)
+# scatter!(switches)
 
-plot(fe[3:end])
+plot(fe[2:end])
+
+# using JLD
+#
+# JLD.save("results_validation_analytic.jld","results",results)
+# resultsJLD = JLD.load("dump/results_validation_analytic.jld")
+# sum_fe = zeros(50)
+#
+# for i=1:100
+#     replace!(results[i]["fe"],NaN => 0.0)
+#     sum_fe += results[i]["fe"]
+# end
+#
+#
+# plot(sum_fe[2:end]./100)

@@ -1,6 +1,6 @@
 import ForneyLab: collectStructuredVariationalNodeInbounds, ultimatePartner, current_inference_algorithm,
                   posteriorFactor,localEdgeToRegion, ultimatePartner, assembleClamp!,posteriorFactor,isClamped,
-                  @symmetrical
+                  @symmetrical, softmax
 
 export ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP,
        ruleSVBSwitchingGaussianControlledVarianceMIn2PPPP,
@@ -26,7 +26,7 @@ function ϕ(z, κ, ω, s)
     mω, Vω = unsafeMeanCov(ω)
     mz, vz = unsafeMeanCov(z)
     mκ, Vκ = unsafeMeanCov(κ)
-    select = category(ms)
+    select = category(softmax(ms))
     exp(-mκ[select]*mz - mω[select] + 0.5((mκ[select])^2*vz + mz^2*Vκ[select,select] + Vκ[select,select]*vz + Vω[select]))
 end
 
@@ -107,6 +107,7 @@ function ruleSVBSwitchingGaussianControlledVariancePPPPIn6(dist_in1_in2::Probabi
     r = exp.(-0.5.*(mκ .* mz .+ mω + ψ(dist_in1_in2) .* A .* B))
 
     Message(Univariate, Categorical, p = r ./ sum(r))
+    # Message(Univariate, Categorical, p = softmax(r))
 end
 
 function ruleMSwitchingGaussianControlledVariance(msg_in1::Message{F1}, msg_in2::Message{F2},

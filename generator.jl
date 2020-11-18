@@ -9,24 +9,33 @@ function generate_swtiching_hgf(n_samples, switches, ωs)
     rw = 0.01
     std_x = []
 
-    for i in 2:n_samples
-        z[i] = z[i - 1] + sqrt(rw)*randn()
-        if switches[i] == 1
-            push!(std_x, sqrt(exp(κs[1]*z[i] + ωs[1])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 2
-            push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
-            x[i] = x[i - 1] + std_x[end]*randn()
-        elseif switches[i] == 3
-            push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
-            x[i] = x[i - 1] + std_x[end]*randn()
+    stationary = false
+    while !stationary
+        for i in 2:n_samples
+            z[i] = z[i - 1] + sqrt(rw)*randn()
+            if switches[i] == 1
+                push!(std_x, sqrt(exp(κs[1]*z[i] + ωs[1])))
+                x[i] = x[i - 1] + std_x[end]*randn()
+            elseif switches[i] == 2
+                push!(std_x, sqrt(exp(κs[2]*z[i] + ωs[2])))
+                x[i] = x[i - 1] + std_x[end]*randn()
+            elseif switches[i] == 3
+                push!(std_x, sqrt(exp(κs[3]*z[i] + ωs[3])))
+                x[i] = x[i - 1] + std_x[end]*randn()
+            end
+        end
+        if var(z) < 0.3
+            stationary = true
+        else
+            stationary = false
         end
     end
     return x, std_x, z
+
 end
 
 function generate_ω(num_ω)
-    ωs = [rand(collect(-9:0))]
+    ωs = [rand(collect(-9:-2))]
     step = rand([2, 3, 4])
     for i in 2:num_ω
         push!(ωs, ωs[end] + step)
@@ -46,16 +55,16 @@ function generate_switches(n_switches, n_cats, n_samples)
     switches[1:Int(round(n_samples/n_switches))] .= sequence[1]
     switches[Int(round(n_samples/n_switches))+1:2*Int(round(n_samples/n_switches))] .= sequence[2]
     switches[2*Int(round(n_samples/n_switches))+1:3*Int(round(n_samples/n_switches))] .= sequence[3]
-    switches[3*Int(round(n_samples/n_switches))+1:n_samples] .= sequence[2];
+    switches[3*Int(round(n_samples/n_switches))+1:n_samples] .= sequence[4];
     return  switches
 end
 
 
 Random.seed!(42)
-n_datasets = 2
-n_samples = 10
+n_datasets = 10
+n_samples = 500
 n_cats = 3
-dB = 15
+dB = 1.0
 n_switches = 4
 dataset = Dict()
 for i in 1:n_datasets
