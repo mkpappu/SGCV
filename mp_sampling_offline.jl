@@ -124,14 +124,18 @@ results = Dict()
     mnv = dataset[i]["nv"]
     ωs = dataset[i]["ωs"]
     ω1[], ω2[], ω3[] = ωs[1], ωs[2], ωs[3]
-    mz,vz,mx,vx,ms,fe = mp_sampler(obs, ndims=n_cats,
-                           y_w_transition_prior=1/mnv)
-    results[i] = Dict("mz" => mz, "vz" => vz,
-                      "mx" => mx, "vx" => vx,
-                      "ms" => ms, "fe" => fe)
+    try
+        mz,vz,mx,vx,ms,fe = mp_sampler(obs, ndims=n_cats,
+                               y_w_transition_prior=1/mnv)
+        results[i] = Dict("mz" => mz, "vz" => vz,
+                          "mx" => mx, "vx" => vx,
+                          "ms" => ms, "fe" => fe)
+    catch e
+           println("Failed $(i)")
+    end
 end
 
-index = 1
+index = 3
 mz, vz, mx, vx, ms, fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["fe"]
 reals = dataset[index]["reals"]
 obs = dataset[index]["obs"]
@@ -149,3 +153,6 @@ scatter(categories)
 scatter!(switches)
 
 plot(fe[3:end])
+
+using JLD
+JLD.save("dump/results_sampling_st.jld", "results", results)
