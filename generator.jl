@@ -1,4 +1,5 @@
 using Random
+using Statistics
 
 function generate_swtiching_hgf(n_samples, switches, ωs)
     κs = ones(length(ωs))
@@ -61,7 +62,7 @@ end
 
 
 Random.seed!(42)
-n_datasets = 10
+n_datasets = 100
 n_samples = 500
 n_cats = 3
 dB = 1.0

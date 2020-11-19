@@ -109,7 +109,6 @@ end
 include("generator.jl")
 
 # dummies
-
 ω1 = Ref(0)
 ω2 = Ref(0)
 ω3 = Ref(0)
@@ -153,6 +152,16 @@ scatter(categories)
 scatter!(switches)
 
 plot(fe[3:end])
+
+FE = zeros(100)
+plot()
+for i in 1:n_datasets
+    fe = results[i]["fe"] ./ n_samples
+    FE += fe
+    plot!(fe, legend=false, linewidth=0.05, color=:black)
+end
+FE ./= (n_datasets)
+plot!(FE, linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
 
 using JLD
 JLD.save("dump/results_sampling_st.jld", "results", results)
