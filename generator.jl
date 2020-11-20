@@ -61,11 +61,7 @@ end
 
 
 Random.seed!(42)
-<<<<<<< HEAD
 n_datasets = 100
-=======
-n_datasets = 3
->>>>>>> 7b2c1d583468d976bcd55151e8011a4a5d6cde0c
 n_samples = 500
 n_cats = 3
 dB = 10.0

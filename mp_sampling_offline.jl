@@ -162,6 +162,7 @@ for i in 1:n_datasets
 end
 FE ./= (n_datasets)
 plot!(FE, linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
+savefig("figures/FE_sampling_st.pdf")
 
 using JLD
 JLD.save("dump/results_sampling_st.jld", "results", results)
