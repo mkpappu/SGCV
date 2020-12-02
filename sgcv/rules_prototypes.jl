@@ -2,7 +2,7 @@
                            :outbound_type => Message{Gaussian},
                            :inbound_types => (Nothing, Message{Gaussian}, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
                            :name => SVBSwitchingGaussianControlledVarianceIn1MPPPP)
-                           
+
 @structuredVariationalRule(:node_type => SwitchingGaussianControlledVariance,
                            :outbound_type => Message{Gaussian},
                            :inbound_types => (Message{Gaussian}, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
@@ -35,10 +35,27 @@
                            :inbound_types => (ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, Nothing),
                            :name => SVBSwitchingGaussianControlledVariancePPPPIn6)
 
+@structuredVariationalRule(:node_type => SwitchingGaussianControlledVariance,
+                          :outbound_type => Message{Gaussian},
+                          :inbound_types => (Nothing, Message{Function}, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
+                          :name => SVBSwitchingGaussianControlledVarianceIn1FPPPP)
+
+@structuredVariationalRule(:node_type => SwitchingGaussianControlledVariance,
+                          :outbound_type => Message{Gaussian},
+                          :inbound_types => (Message{Function}, Nothing, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
+                          :name => SVBSwitchingGaussianControlledVarianceFIn2PPPP)
+
 @marginalRule(:node_type => SwitchingGaussianControlledVariance,
               :inbound_types => (Message{Gaussian}, Message{Gaussian}, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
               :name => MSwitchingGaussianControlledVariance)
 
+@marginalRule(:node_type => SwitchingGaussianControlledVariance,
+            :inbound_types => (Message{Gaussian}, Message{Function}, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
+            :name => MSwitchingGaussianControlledVarianceGF)
+
+@marginalRule(:node_type => SwitchingGaussianControlledVariance,
+              :inbound_types => (Message{Function}, Message{Gaussian}, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution, ProbabilityDistribution),
+              :name => MSwitchingGaussianControlledVarianceFG)
 
 @structuredVariationalRule(:node_type     => GaussianMeanPrecision,
                           :outbound_type => Message{GaussianMeanVariance},

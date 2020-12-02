@@ -11,7 +11,11 @@ export ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP,
        ruleMSwitchingGaussianControlledVariance,
        prod!,
        ruleSVBGaussianMeanPrecisionMFND,
-       ruleMGaussianMeanPrecisionFGD
+       ruleMGaussianMeanPrecisionFGD,
+       ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP,
+       ruleSVBSwitchingGaussianControlledVarianceFIn2PPPP,
+       ruleMSwitchingGaussianControlledVarianceGF,
+       ruleMSwitchingGaussianControlledVarianceFG
 
 
 
@@ -46,6 +50,20 @@ end
 ruleSVBSwitchingGaussianControlledVarianceMIn2PPPP(msg_in1::Message{F}, msg_in2::Nothing,
             dist_in3::ProbabilityDistribution, dist_in4::ProbabilityDistribution,
             dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where F<:Gaussian = ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP(msg_in2, msg_in1, dist_in3, dist_in4, dist_in5, dist_in6)
+
+function ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP(msg_in1::Message{V}, msg_in2::Message{Function},
+            dist_in3::ProbabilityDistribution, dist_in4::ProbabilityDistribution,
+            dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where V<:Gaussian
+
+            dist_fwd = ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP(nothing, msg_in1, dist_in3, dist_in4, dist_in5, dist_in6).dist
+            l_pdf(x) = msg_in2.params[:log_pdf](x)
+            cubature = ghcubature(1, 20)
+            mean, cov = approximate_meancov(cubature, (x) -> exp(l_pdf(x)), dist_fwd)
+        return  Message(Univariate, GaussianMeanVariance, m = mean, v = cov)
+end
+ruleSVBSwitchingGaussianControlledVarianceFIn2PPPP(msg_in1::Message{Function}, msg_in2::Message{V},
+            dist_in3::ProbabilityDistribution, dist_in4::ProbabilityDistribution,
+            dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where V<:Gaussian = ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP(msg_in2,msg_in1,dist_in3,dist_in4,dist_in5,dist_in6)
 
 
 function ruleSVBSwitchingGaussianControlledVariancePIn3PPP(dist_in1_in2::ProbabilityDistribution,
@@ -121,6 +139,29 @@ function ruleMSwitchingGaussianControlledVariance(msg_in1::Message{F1}, msg_in2:
     λ = [ϕ̂+w_y -ϕ̂; -ϕ̂ ϕ̂+w_x]
     ProbabilityDistribution(Multivariate, GaussianWeightedMeanPrecision, xi=[xi_y; xi_x], w=λ)
 end
+
+function ruleMSwitchingGaussianControlledVarianceGF(msg_in1::Message{F1}, msg_in2::Message{Function},
+            dist_in3::ProbabilityDistribution, dist_in4::ProbabilityDistribution,
+            dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where {F1<:Gaussian}
+
+    dist_fwd = ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP(nothing, msg_in1, dist_in3, dist_in4, dist_in5, dist_in6).dist
+    l_pdf(x) = msg_in2.params[:log_pdf](x)
+    cubature = ghcubature(1, 20)
+    mean, cov = approximate_meancov(cubature, (x) -> exp(l_pdf(x)), dist_fwd)
+    approx_msg = Message(Univariate,GaussianMeanVariance,m=mean,v=cov)
+
+    xi_y, w_y = unsafeWeightedMeanPrecision(msg_in1.dist)
+    xi_x, w_x = unsafeWeightedMeanPrecision(approx_msg.dist)
+    ϕ̂ = ϕ(dist_in3, dist_in4, dist_in5, dist_in6)
+
+    λ = [ϕ̂+w_y -ϕ̂; -ϕ̂ ϕ̂+w_x]
+    ProbabilityDistribution(Multivariate, GaussianWeightedMeanPrecision, xi=[xi_y; xi_x], w=λ)
+end
+
+ruleMSwitchingGaussianControlledVarianceFG(msg_in1::Message{Function}, msg_in2::Message{F1},
+            dist_in3::ProbabilityDistribution, dist_in4::ProbabilityDistribution,
+            dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where {F1<:Gaussian} = ruleMSwitchingGaussianControlledVarianceGF(msg_in2,msg_in1,dist_in3,dist_in4,dist_in5,dist_in6)
+
 
 @symmetrical function prod!(x::ProbabilityDistribution{Multivariate, Function},
                             y::ProbabilityDistribution{Multivariate, F},
@@ -286,6 +327,44 @@ function collectStructuredVariationalNodeInbounds(node::GaussianMeanPrecision, e
 
         if node_interface === entry.interface
             if (entry.message_update_rule == SVBGaussianMeanPrecisionMFND)
+                push!(inbounds, interface_to_schedule_entry[inbound_interface])
+            else
+                push!(inbounds, nothing)
+            end
+        elseif isClamped(inbound_interface)
+            # Hard-code marginal of constant node in schedule
+            push!(inbounds, assembleClamp!(inbound_interface.node, ProbabilityDistribution))
+        elseif current_posterior_factor === entry_posterior_factor
+            # Collect message from previous result
+            push!(inbounds, interface_to_schedule_entry[inbound_interface])
+        elseif !(current_posterior_factor in encountered_posterior_factors)
+            # Collect marginal from marginal dictionary (if marginal is not already accepted)
+            target = local_edge_to_region[node_interface.edge]
+            push!(inbounds, target_to_marginal_entry[target])
+        end
+
+        push!(encountered_posterior_factors, current_posterior_factor)
+    end
+
+    return inbounds
+end
+
+function collectStructuredVariationalNodeInbounds(node::SwitchingGaussianControlledVariance, entry::ScheduleEntry)
+    interface_to_schedule_entry = current_inference_algorithm.interface_to_schedule_entry
+    target_to_marginal_entry = current_inference_algorithm.target_to_marginal_entry
+
+    inbounds = Any[]
+    entry_posterior_factor = posteriorFactor(entry.interface.edge)
+    local_edge_to_region = localEdgeToRegion(entry.interface.node)
+
+    encountered_posterior_factors = Union{PosteriorFactor, Edge}[] # Keep track of encountered posterior factors
+    for node_interface in entry.interface.node.interfaces
+        inbound_interface = ultimatePartner(node_interface)
+        current_posterior_factor = posteriorFactor(node_interface.edge)
+
+        if node_interface === entry.interface
+            if (entry.message_update_rule in [ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP,
+             ruleSVBSwitchingGaussianControlledVarianceFIn2PPPP])
                 push!(inbounds, interface_to_schedule_entry[inbound_interface])
             else
                 push!(inbounds, nothing)
