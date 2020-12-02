@@ -34,7 +34,7 @@ function generate_mp(n_cats1, n_cats2, n_samples)
     for t in 2:n_samples
         @RV [id=pad(:s2, t)] s2[t] ~ Transition(s2[t-1], A2)
         @RV [id=pad(:s1, t)] s1[t] ~ Transition(s1[t-1], A1)
-        @RV [id=pad(:z2,t)] z2[t] ~ GaussianMeanPrecision(z2[t - 1], placeholder(pad(:wz_transition2, t)))
+        @RV [id=pad(:z2,t)] z2[t] ~ GaussianMeanPrecision(z2[t - 1], placeholder(pad(:wz2_transition, t)))
         @RV [id=pad(:z1,t)] z1[t] ~ SwitchingGaussianControlledVariance(z1[t - 1], z2[t], ones(n_cats2), ω2,s2[t])
         @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z1[t], ones(n_cats1), ω1,s1[t])
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
