@@ -12,38 +12,6 @@ include("compatibility.jl")
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
-function generate_mp_2l(ndim, n_samples)
-    fg = FactorGraph()
-    z2 = Vector{Variable}(undef, n_samples)
-    s2 = Vector{Variable}(undef, n_samples)
-    z1 = Vector{Variable}(undef, n_samples)
-    s1 = Vector{Variable}(undef, n_samples)
-    x = Vector{Variable}(undef, n_samples)
-    y = Vector{Variable}(undef, n_samples)
-    @RV A2 ~ Dirichlet(ones(ndim, ndim))
-    @RV A1 ~ Dirichlet(ones(ndim, ndim))
-    @RV [id=pad(:z1,1)] z1[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
-    @RV [id=pad(:z2,1)] z2[1] ~ GaussianMeanPrecision(placeholder(:mz_prior2), placeholder(:wz_prior2))
-    @RV [id=pad(:x,1)] x[1] ~ GaussianMeanPrecision(placeholder(:mx_prior1), placeholder(:wx_prior1))
-    @RV [id=pad(:y,1)] y[1] ~ GaussianMeanPrecision(x[1], placeholder(:wy_prior1))
-    @RV [id=pad(:s1,1)] s1[1] ~ ForneyLab.Categorical(ones(ndim) ./ ndim)
-    @RV [id=pad(:s2,1)] s2[1] ~ ForneyLab.Categorical(ones(ndim) ./ ndim)
-    placeholder(y[1], :y, index = 1)
-    for t in 2:n_samples
-        @RV [id=pad(:s2, t)] s2[t] ~ Transition(s2[t-1], A2)
-        @RV [id=pad(:s1, t)] s1[t] ~ Transition(s1[t-1], A1)
-        @RV [id=pad(:z2,t)] z2[t] ~ GaussianMeanPrecision(z2[t - 1], placeholder(pad(:wz_transition2, t)))
-        @RV [id=pad(:z1,t)] z1[t] ~ SwitchingGaussianControlledVariance(z1[t - 1], z2[t], ones(ndim), placeholder(pad(:ωs2, t), dims=(ndim, )),s2[t])
-        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z1[t], ones(ndim), placeholder(pad(:ωs1, t), dims=(ndim, )),s1[t])
-        @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
-        placeholder(y[t], :y, index = t)
-    end
-    q = PosteriorFactorization(x, z1, s1, z2, s2, A1, A2, ids=[:X :Z1 :S1 :Z2 :S2 :A1 :A2])
-    algo = messagePassingAlgorithm(free_energy=true)
-    src_code = algorithmSourceCode(algo, free_energy=true);
-    return src_code
-end
-
 function generate_mp(ndim, n_samples)
     fg = FactorGraph()
     z = Vector{Variable}(undef, n_samples)
@@ -144,7 +112,6 @@ function mp(obs;
 end
 
 include("generator.jl")
-
 
 obs = dataset[2]["obs"]
 mnv = dataset[2]["nv"]
