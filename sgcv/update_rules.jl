@@ -56,7 +56,7 @@ function ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP(msg_in1::Message{V},
             dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where V<:Gaussian
 
             dist_fwd = ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP(nothing, msg_in1, dist_in3, dist_in4, dist_in5, dist_in6).dist
-            l_pdf(x) = msg_in2.params[:log_pdf](x)
+            l_pdf(x) = msg_in2.dist.params[:log_pdf](x)
             cubature = ghcubature(1, 20)
             mean, cov = approximate_meancov(cubature, (x) -> exp(l_pdf(x)), dist_fwd)
         return  Message(Univariate, GaussianMeanVariance, m = mean, v = cov)
@@ -145,7 +145,7 @@ function ruleMSwitchingGaussianControlledVarianceGF(msg_in1::Message{F1}, msg_in
             dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution) where {F1<:Gaussian}
 
     dist_fwd = ruleSVBSwitchingGaussianControlledVarianceIn1MPPPP(nothing, msg_in1, dist_in3, dist_in4, dist_in5, dist_in6).dist
-    l_pdf(x) = msg_in2.params[:log_pdf](x)
+    l_pdf(x) = msg_in2.dist.params[:log_pdf](x)
     cubature = ghcubature(1, 20)
     mean, cov = approximate_meancov(cubature, (x) -> exp(l_pdf(x)), dist_fwd)
     approx_msg = Message(Univariate,GaussianMeanVariance,m=mean,v=cov)
@@ -363,8 +363,7 @@ function collectStructuredVariationalNodeInbounds(node::SwitchingGaussianControl
         current_posterior_factor = posteriorFactor(node_interface.edge)
 
         if node_interface === entry.interface
-            if (entry.message_update_rule in [ruleSVBSwitchingGaussianControlledVarianceIn1FPPPP,
-             ruleSVBSwitchingGaussianControlledVarianceFIn2PPPP])
+            if (entry.message_update_rule in [SVBSwitchingGaussianControlledVarianceIn1FPPPP, SVBSwitchingGaussianControlledVarianceFIn2PPPP])
                 push!(inbounds, interface_to_schedule_entry[inbound_interface])
             else
                 push!(inbounds, nothing)

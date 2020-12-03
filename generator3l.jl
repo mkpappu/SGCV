@@ -7,10 +7,10 @@ function generate_swtiching_hgf(n_samples, switches, ωs, variance)
     x = Vector{Float64}(undef, n_samples)
     z[1] = 0.0
     x[1] = 0.0
-    std_x = [0.01]
+    std_x = []
 
     stationary = false
-    while !stationary
+    # while !stationary
         for i in 2:n_samples
             # dirty mofo
             if typeof(variance) == Float64
@@ -29,15 +29,13 @@ function generate_swtiching_hgf(n_samples, switches, ωs, variance)
                 x[i] = x[i - 1] + std_x[end]*randn()
             end
         end
-        if var(z) < 0.9
-            stationary = true
-        else
-            stationary = true
-        end
-    end
+
+    # end
     return x, std_x, z
 
 end
+
+
 
 function generate_ω(num_ω)
     ωs = [rand(collect(-9:-2))]
@@ -76,7 +74,7 @@ n_datasets = 10
 n_samples = 100
 n_cats2 = 2
 n_cats1 = 3
-dB = 10.0
+dB = 30.0
 n_switches = 4
 dataset = Dict()
 for i in 1:n_datasets
@@ -88,10 +86,11 @@ for i in 1:n_datasets
     mnv = generate_mnv(dB, omegas1)
     variance = 0.001
     z2, std_z1, upper_rw2 = generate_swtiching_hgf(n_samples, switches2, omegas2, variance)
-    reals, std_x, upper_rw1 = generate_swtiching_hgf(n_samples, switches1, omegas1, std_z1)
+    reals, std_x, upper_rw1 = generate_swtiching_hgf(n_samples, switches1, omegas1, z2)
+
     obs = reals .+ sqrt(mnv)*randn(length(reals))
 
-    dataset[i] = Dict("switches2" => switches2, "ωs2" => omegas2, "nv" => mnv,
+    dataset[i] = Dict("switches2" => switches2,"switches1" => switches1, "ωs1"=> omegas1,"ωs2" => omegas2, "nv" => mnv,
                       "z2" => z2, "std_z1" => std_x, "rw2" => upper_rw2,
                       "reals" => reals, "std_x" => std_x, "rw1" => upper_rw1,
                       "obs" => obs, "var_top" => variance)

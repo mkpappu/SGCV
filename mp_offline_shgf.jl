@@ -1,4 +1,4 @@
-using Revise
+# using Revise
 using ForneyLab
 include("sgcv/SGCV.jl")
 using Main.SGCV
@@ -48,29 +48,29 @@ end
 
 function mp(obs;
     n_cats1, n_cats2,
-    n_its = 100,
+    n_its = 20,
     wy_prior1 = 1.0,
     κ1_m_prior = ones(n_cats1),
     ω1_m_prior = omegas1,
     κ1_w_prior =  huge .* diageye(n_cats1),
     ω1_w_prior = 1.0 * diageye(n_cats1),
     z1_m_prior = 0.0,
-    z1_w_prior = 100.0,
+    z1_w_prior = 1.0,
     κ2_m_prior = ones(n_cats2),
     ω2_m_prior = omegas2,
     κ2_w_prior =  huge .* diageye(n_cats2),
     ω2_w_prior = 1.0 * diageye(n_cats2),
     z2_m_prior = 0.0,
-    z2_w_prior = 100.0,
+    z2_w_prior = 1.0,
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     x_x_m_prior = zeros(n_cats1),
     x_x_w_prior = 1.0*diageye(n_cats1),
     z1_z1_m_prior = zeros(n_cats1),
-    z1_z1_w_prior = 100.0*diageye(n_cats1),
-    z1_w_transition_prior = 1000.0,
+    z1_z1_w_prior = 1.0*diageye(n_cats1),
+    z1_w_transition_prior = 10.0,
     z2_z2_m_prior = zeros(n_cats2),
-    z2_z2_w_prior = 100.0*diageye(n_cats2),
+    z2_z2_w_prior = 1.0*diageye(n_cats2),
     z2_w_transition_prior = 1000.0,
     y_w_transition_prior =  1/mnv,
 )
@@ -156,32 +156,43 @@ function mp(obs;
     return mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx, vx, ms1, ms2, fe
 end
 
-include("generator.jl")
-
-obs = dataset[2]["obs"]
-mnv = dataset[2]["nv"]
-omegas1 = dataset[2]["ωs"]
-omegas2 = dataset[2]["ωs"]
-switches = dataset[2]["switches"]
+include("generator3l.jl")
+index=3
+obs = dataset[index]["obs"]
+mnv = dataset[index]["nv"]
+omegas1 = dataset[index]["ωs1"]
+omegas2 = dataset[index]["ωs2"]
+switches1 = dataset[index]["switches1"]
+switches2 = dataset[index]["switches2"]
 code = generate_mp(n_cats1, n_cats2, n_samples)
 eval(Meta.parse(code))
-mz1, vz1, mω1, vω1,
-mz2, vz2, mω2, vω2, mx, vx,
-ms1, ms2, fe = mp(obs, n_cats1=3, n_cats2=3,
+mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx, vx,ms1, ms2, fe = mp(obs, n_cats1=3, n_cats2=2,
                   ω1_m_prior=omegas1 .+ sqrt(1)*randn(length(omegas1)),
                   ω2_m_prior=omegas2 .+ sqrt(1)*randn(length(omegas2)),
                   y_w_transition_prior=1/mnv)
 
 
-plot(mz, ribbon=sqrt.(vz))
-upper_rw = dataset[1]["rw"]
-plot!(upper_rw)
-
-categories = [x[2] for x in findmax.(ms)]
-scatter(categories)
-scatter!(switches)
-
 plot(mx, ribbon=sqrt.(vx))
-scatter!(obs)
+first_layer = dataset[index]["reals"]
+plot!(first_layer)
 
-plot(fe[3:end])
+plot(mz2, ribbon=sqrt.(vz2))
+rw2 = dataset[index]["rw2"]
+plot!(rw2)
+
+
+plot(mz1, ribbon=sqrt.(vz1))
+rw1 = dataset[index]["rw1"]
+plot!(rw1)
+
+categories1 = [x[2] for x in findmax.(ms1)]
+scatter(categories1)
+scatter!(switches1)
+
+categories2 = [x[2] for x in findmax.(ms2)]
+scatter(categories2)
+scatter!(switches2)
+
+println(mω1," ", vω1)
+println(mω2," ", vω2)
+plot(fe[2:end])
