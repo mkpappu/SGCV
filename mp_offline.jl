@@ -19,6 +19,7 @@ function generate_mp(ndim, n_samples)
     y = Vector{Variable}(undef, n_samples)
     s = Vector{Variable}(undef, n_samples)
     @RV A ~ Dirichlet(ones(ndim, ndim))
+    @RV ω ~ GaussianMeanPrecision(placeholder(:mω, dims=(ndim, )), placeholder(:wω, dims=(ndim, ndim)))
     @RV [id=pad(:z,1)] z[1] ~ GaussianMeanPrecision(placeholder(:mz_prior1), placeholder(:wz_prior1))
     @RV [id=pad(:x,1)] x[1] ~ GaussianMeanPrecision(placeholder(:mx_prior1), placeholder(:wx_prior1))
     @RV [id=pad(:y,1)] y[1] ~ GaussianMeanPrecision(x[1], placeholder(:wy_prior1))
@@ -27,11 +28,11 @@ function generate_mp(ndim, n_samples)
     for t in 2:n_samples
         @RV [id=pad(:s,t)] s[t] ~ Transition(s[t-1], A)
         @RV [id=pad(:z,t)] z[t] ~ GaussianMeanPrecision(z[t - 1], placeholder(pad(:wz_transition, t)))
-        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],ones(ndim),placeholder(pad(:ωs, t), dims=(ndim, )),s[t])
+        @RV [id=pad(:x,t)] x[t] ~ SwitchingGaussianControlledVariance(x[t - 1], z[t],ones(ndim),ω,s[t])
         @RV [id=pad(:y,t)] y[t] ~ GaussianMeanPrecision(x[t], placeholder(pad(:wy_transition, t)))
         placeholder(y[t], :y, index = t)
     end
-    q = PosteriorFactorization(x, z ,s, A, ids=[:X :Z :S :A])
+    q = PosteriorFactorization(x, z ,s, A, ω, ids=[:X :Z :S :A :Ω])
     algo = messagePassingAlgorithm(free_energy=true)
     src_code = algorithmSourceCode(algo, free_energy=true);
     return src_code
@@ -79,8 +80,10 @@ function mp(obs;
     data[:mx_prior1] = x_m_prior
     data[:wx_prior1] = x_w_prior
     data[:wy_prior1] = wy_prior1
+
+    data[:mω] = ω_m_prior
+    data[:wω] = ω_w_prior
     for t = 1:n_samples
-        data[pad(:ωs, t)] = ω_m_prior
         data[pad(:wz_transition, t)] = z_w_transition_prior
         data[pad(:wy_transition, t)] = y_w_transition_prior
     end
@@ -88,12 +91,13 @@ function mp(obs;
 
     fe = Vector{Float64}(undef, n_its)
 
-    @showprogress "Iterations" for i = 1:n_its
+    for i = 1:n_its
 
         stepX!(data, marginals)
         stepS!(data, marginals)
         stepA!(data, marginals)
         stepZ!(data, marginals)
+        stepΩ!(data, marginals)
 
         fe[i] = freeEnergy(data, marginals)
     end
@@ -103,7 +107,9 @@ function mp(obs;
     mx = [ForneyLab.unsafeMean(marginals[pad(:x,t)]) for t=1:n_samples]
     vx = [ForneyLab.unsafeVar(marginals[pad(:x,t)]) for t=1:n_samples]
     ms = [ForneyLab.unsafeMean(marginals[pad(:s,t)]) for t=1:n_samples]
-    return mz,vz,mx,vx,ms,fe
+    mω = ForneyLab.unsafeMean(marginals[:ω])
+    vω = ForneyLab.unsafeCov(marginals[:ω])
+    return mz,vz,mx,vx,ms, mω, vω, fe
 end
 
 include("generator.jl")
@@ -111,19 +117,22 @@ include("generator.jl")
 code = generate_mp(n_cats, n_samples)
 eval(Meta.parse(code))
 results = Dict()
-@showprogress "Datasets" for i in 1:n_datasets 
+@showprogress "Datasets" for i in 1:n_datasets
     obs = dataset[i]["obs"]
     mnv = dataset[i]["nv"]
-    mz,vz,mx,vx,ms,fe = mp(obs, ndims=n_cats, ω_m_prior=dataset[i]["ωs"],
-                           y_w_transition_prior=1/mnv)
+    omegas = dataset[i]["ωs"]
+    mz,vz,mx,vx,ms, mω, vω,fe = mp(obs, ndims=n_cats, ω_m_prior=omegas .+ sqrt(10)*randn(length(omegas)) ,
+                                  ω_w_prior=diageye(n_cats),
+                                  y_w_transition_prior=1/mnv)
     results[i] = Dict("mz" => mz, "vz" => vz,
                       "mx" => mx, "vx" => vx,
-                      "ms" => ms, "fe" => fe)
+                      "ms" => ms, "fe" => fe,
+                      "mω" => mω, "vω" => vω)
 end
 
-index = 4
+index = 1
 
-mz, vz, mx, vx, ms, fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["fe"]
+mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
 obs = dataset[index]["obs"]
 upper_rw = dataset[index]["rw"]
@@ -137,10 +146,11 @@ plot!(upper_rw)
 
 categories = [x[2] for x in findmax.(ms)]
 scatter(categories)
-# scatter!(switches)
+scatter!(switches)
 
 plot(fe[2:end])
 
+mse_ω = mean((mω .- dataset[index]["ωs"]) .^2)
 # using JLD
 #
 # JLD.save("results_validation_analytic.jld","results",results)

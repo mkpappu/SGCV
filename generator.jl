@@ -61,8 +61,8 @@ end
 
 
 Random.seed!(42)
-n_datasets = 100
-n_samples = 10
+n_datasets = 1
+n_samples = 100
 n_cats = 3
 dB = 10.0
 n_switches = 4
