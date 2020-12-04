@@ -40,7 +40,7 @@ end
 
 function mp(obs;
     ndims,
-    n_its = 50,
+    n_its = 100,
     wy_prior1 = 1.0,
     κ_m_prior = ones(ndims),
     ω_m_prior = omegas,
@@ -121,16 +121,20 @@ results = Dict()
     obs = dataset[i]["obs"]
     mnv = dataset[i]["nv"]
     omegas = dataset[i]["ωs"]
-    mz,vz,mx,vx,ms, mω, vω,fe = mp(obs, ndims=n_cats, ω_m_prior=omegas .+ sqrt(10)*randn(length(omegas)) ,
-                                  ω_w_prior=diageye(n_cats),
-                                  y_w_transition_prior=1/mnv)
-    results[i] = Dict("mz" => mz, "vz" => vz,
-                      "mx" => mx, "vx" => vx,
-                      "ms" => ms, "fe" => fe,
-                      "mω" => mω, "vω" => vω)
+    try
+        mz,vz,mx,vx,ms, mω, vω,fe = mp(obs, ndims=n_cats, ω_m_prior=omegas .+ sqrt(1)*randn(length(omegas)) ,
+                                      ω_w_prior=diageye(n_cats),
+                                      y_w_transition_prior=1/mnv)
+        results[i] = Dict("mz" => mz, "vz" => vz,
+                          "mx" => mx, "vx" => vx,
+                          "ms" => ms, "fe" => fe,
+                          "mω" => mω, "vω" => vω)
+    catch e
+           println("Failed $(i)")
+    end
 end
 
-index = 1
+index = 2
 
 mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
@@ -150,12 +154,32 @@ scatter!(switches)
 
 plot(fe[2:end])
 
-mse_ω = mean((mω .- dataset[index]["ωs"]) .^2)
-# using JLD
-#
-# JLD.save("results_validation_analytic.jld","results",results)
-# resultsJLD = JLD.load("dump/results_validation_analytic.jld")
-# sum_fe = zeros(50)
+sum = 0
+for i in 1:n_datasets
+    mω = results[i]["mω"]
+    mse_ω = mean((mω .- dataset[i]["ωs"]) .^2)
+    if mse_ω > 1.0
+        sum += 1
+        println(i)
+    end
+end
+
+
+FE = zeros(100)
+plot()
+for i in 1:n_datasets
+    fe = results[i]["fe"] ./ n_samples
+    FE += fe
+    plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
+end
+FE ./= (n_datasets)
+plot!(FE[3:end], linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
+
+using JLD
+
+JLD.save("dump/results_validation_analytic.jld","results",results)
+resultsJLD = JLD.load("dump/results_validation_analytic.jld")
+sum_fe = zeros(50)
 #
 # for i=1:100
 #     replace!(results[i]["fe"],NaN => 0.0)
