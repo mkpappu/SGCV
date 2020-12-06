@@ -173,12 +173,14 @@ for i in 1:n_datasets
     plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
 end
 FE ./= (n_datasets)
-plot!(FE[3:end], linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
+plot(FE[2:end], linewidth=1.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
 
 using JLD
 
-JLD.save("dump/results_validation_analytic.jld","results",results)
+#JLD.save("dump/results_validation_analytic.jld","results",results)
+using SparseArrays
 resultsJLD = JLD.load("dump/results_validation_analytic.jld")
+results = resultsJLD["results"]
 sum_fe = zeros(50)
 #
 # for i=1:100
