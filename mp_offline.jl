@@ -134,23 +134,50 @@ results = Dict()
     end
 end
 
-index = 2
+index = 12
 
 mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
 obs = dataset[index]["obs"]
 upper_rw = dataset[index]["rw"]
 switches = dataset[index]["switches"]
-plot(mx, ribbon=sqrt.(vx))
-plot!(reals)
-scatter!(obs)
 
-plot(mz, ribbon=sqrt.(vz))
-plot!(upper_rw)
-
+# Plot recovered data
+plot(mx, ribbon=sqrt.(vx), label="inferred")
+plot!(reals, label="real")
+scatter!(obs, color=:grey, markershape=:xcross, markersize=2, markeralpha=0.4, label="observed")
 categories = [x[2] for x in findmax.(ms)]
+for (index, categ) in enumerate(categories)
+    if categ == 1
+        scatter!([index], [6.0], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    elseif categ == 2
+        scatter!([index], [6.0], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    else
+        scatter!([index], [6.0],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    end
+
+end
+for (index, categ) in enumerate(switches)
+    if categ == 1
+        scatter!([index], [-5.0], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    elseif categ == 2
+        scatter!([index], [-5.0], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    else
+        scatter!([index], [-5.0],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+    end
+
+end
+plot!(legend=false)
+
+
 scatter(categories)
 scatter!(switches)
+
+using LaTeXStrings
+plot(mz, ribbon=sqrt.(vz), label="inferred", ylabel=L"x^{(1)}", xlabel=L"t")
+plot!(upper_rw, label="real")
+
+
 
 plot(fe[2:end])
 
@@ -173,8 +200,8 @@ for i in 1:n_datasets
     plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
 end
 FE ./= (n_datasets)
-plot(FE[2:end], linewidth=1.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
-
+plot(FE[2:end], legend=:false, linewidth=1.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
+savefig("figures/FE_analytic.pdf")
 using JLD
 
 #JLD.save("dump/results_validation_analytic.jld","results",results)
