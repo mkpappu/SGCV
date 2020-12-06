@@ -134,7 +134,7 @@ results = Dict()
     end
 end
 
-index = 12
+index = 14
 
 mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
@@ -147,28 +147,30 @@ plot(mx, ribbon=sqrt.(vx), label="inferred")
 plot!(reals, label="real")
 scatter!(obs, color=:grey, markershape=:xcross, markersize=2, markeralpha=0.4, label="observed")
 categories = [x[2] for x in findmax.(ms)]
+maxup = maximum(obs) + 1.0
+mindown = minimum(obs) - 1.0
 for (index, categ) in enumerate(categories)
     if categ == 1
-        scatter!([index], [6.0], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [maxup], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     elseif categ == 2
-        scatter!([index], [6.0], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [maxup], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     else
-        scatter!([index], [6.0],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [maxup],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     end
 
 end
 for (index, categ) in enumerate(switches)
     if categ == 1
-        scatter!([index], [-5.0], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [mindown], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     elseif categ == 2
-        scatter!([index], [-5.0], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [mindown], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     else
-        scatter!([index], [-5.0],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
+        scatter!([index], [mindown],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label=false)
     end
 
 end
 plot!(legend=false)
-
+savefig("figures/recovered_switches.pdf")
 
 scatter(categories)
 scatter!(switches)
