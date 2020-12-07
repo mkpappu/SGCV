@@ -25,22 +25,22 @@ include("../approximations/srcubature.jl")
 
 category(p) = findmax(p)[2]
 
-function ϕ(z, κ, ω, s)
-    ms = unsafeMean(s)
-    mω, Vω = unsafeMeanCov(ω)
-    mz, vz = unsafeMeanCov(z)
-    mκ, Vκ = unsafeMeanCov(κ)
-    select = category(softmax(ms))
-    exp(-mκ[select]*mz - mω[select] + 0.5((mκ[select])^2*vz + mz^2*Vκ[select,select] + Vκ[select,select]*vz + Vω[select]))
-end
-
 # function ϕ(z, κ, ω, s)
 #     ms = unsafeMean(s)
 #     mω, Vω = unsafeMeanCov(ω)
 #     mz, vz = unsafeMeanCov(z)
 #     mκ, Vκ = unsafeMeanCov(κ)
-#     exp(-ms'*mκ*mz - ms'*mω + 0.5((ms'*mκ)^2*vz + mz^2*ms'*Vκ*ms + ms'*Vκ*ms*vz + ms'*Vω*ms))
+#     select = category(softmax(ms))
+#     exp(-mκ[select]*mz - mω[select] + 0.5((mκ[select])^2*vz + mz^2*Vκ[select,select] + Vκ[select,select]*vz + Vω[select]))
 # end
+
+function ϕ(z, κ, ω, s)
+    ms = unsafeMean(s)
+    mω, Vω = unsafeMeanCov(ω)
+    mz, vz = unsafeMeanCov(z)
+    mκ, Vκ = unsafeMeanCov(κ)
+    ms'*(exp.(-mκ*mz .- mω + 0.5((mκ).^2 .* vz .+ mz^2 .*diag(Vκ) .+ diag(Vκ).*vz .+ diag(Vω))))
+end
 
 function ψ(yx)
     m, V = unsafeMeanCov(yx)
@@ -82,8 +82,11 @@ function ruleSVBSwitchingGaussianControlledVariancePIn3PPP(dist_in1_in2::Probabi
     mω, Vω = unsafeMeanCov(dist_in5)
     ms = unsafeMean(dist_in6)
     select = category(ms)
+    # l_pdf(z) = begin
+    #     -0.5*(mκ[select]*z + mω[select] + ψ(dist_in1_in2)*exp(-mκ[select]*z - mω[select] + 0.5*Vκ[select,select]*z^2 + 0.5*Vω[select,select]))
+    # end
     l_pdf(z) = begin
-        -0.5*(mκ[select]*z + mω[select] + ψ(dist_in1_in2)*exp(-mκ[select]*z - mω[select] + 0.5*Vκ[select,select]*z^2 + 0.5*Vω[select,select]))
+        -0.5*ms'* ((mκ.*z .+ mω + ψ(dist_in1_in2)*exp.(-mκ.*z .- mω .+ 0.5*diag(Vκ).*z^2 .+ 0.5*diag(Vω))))
     end
     Message(Univariate, Function, log_pdf = l_pdf, cubature = ghcubature(1, 20))
 
@@ -94,11 +97,11 @@ function ruleSVBSwitchingGaussianControlledVariancePPIn4PP(dist_in1_in2::Probabi
             dist_in5::ProbabilityDistribution, dist_in6::ProbabilityDistribution)
 
     mz, vz = unsafeMeanCov(dist_in3)
-    mω, Vω = unsafeMeanCov(dist_in5)
+    mω, c = unsafeMeanCov(dist_in5)
     ms = unsafeMean(dist_in6)
 
     l_pdf(κ) = begin
-        -0.5*(ms'*(κ*mz .+ ψ(dist_in1_in2) .* exp.(-κ*mz + 0.5vz .* κ.^2)))
+        -0.5*(ms'*(κ*mz.+ ψ(dist_in1_in2) .* exp.(-κ*mz .+ 0.5vz .* κ.^2)))
     end
     Message(Multivariate, Function, log_pdf = l_pdf, cubature = ghcubature(dims(dist_in5), 20))
 
@@ -114,7 +117,7 @@ function ruleSVBSwitchingGaussianControlledVariancePPPIn5P(dist_in1_in2::Probabi
     ms = unsafeMean(dist_in6)
 
     l_pdf(ω) = begin
-        -0.5*(ms'*(ω .+ ψ(dist_in1_in2) .* exp.(-ω)))
+        -0.5*(ms'*( ω .+ ψ(dist_in1_in2) .* exp.(-ω)))
     end
     Message(Multivariate, Function, log_pdf = l_pdf, cubature = ghcubature(dims(dist_in4), 20))
 
