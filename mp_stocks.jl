@@ -9,7 +9,6 @@ using Random
 using ProgressMeter
 include("compatibility.jl")
 
-
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
 # 2 layers
@@ -48,13 +47,13 @@ function mp_2l(obs;
     κ_w_prior =  huge .* diageye(ndims),
     ω_w_prior = 1.0 * diageye(ndims),
     z_m_prior = 0.0,
-    z_w_prior = 100.0,
+    z_w_prior = 1.0,
     x_m_prior = 0.0,
     x_w_prior = 1.0,
     x_x_m_prior = zeros(ndims),
     x_x_w_prior = 1.0*diageye(ndims),
     z_z_m_prior = zeros(ndims),
-    z_z_w_prior = 100.0*diageye(ndims),
+    z_z_w_prior = 1.0*diageye(ndims),
     z_w_transition_prior = 1000.0,
     y_w_transition_prior =  1/mnv,
 )
@@ -172,7 +171,7 @@ function mp_3l(obs;
     z1_w_transition_prior = 10.0,
     z2_z2_m_prior = zeros(n_cats2),
     z2_z2_w_prior = 1.0*diageye(n_cats2),
-    z2_w_transition_prior = 1000.0,
+    z2_w_transition_prior = 10.0,
     y_w_transition_prior =  1/mnv,
 )
     n_samples = length(obs)
@@ -343,17 +342,21 @@ function mp(obs;
     return mz,vz,mω, vω, mx,vx,fe
 end
 
+# download data
 using CSV
 using DataFrames
 using Plots
 df = CSV.File("data/AAPL.csv") |> DataFrame
 plot(df[:Open])
 series = df[!, :Open]
-omegas = [-5.0, 0.0]
+
+
+# good prior
+omegas = [-1.0, 4.0]
 n_cats = length(omegas)
 code = generate_mp_2l(n_cats, length(series))
 eval(Meta.parse(code))
-mz,vz,mω, vω, mx,vx,ms,fe = mp_2l(series, ndims=n_cats, ω_m_prior=omegas, ω_w_prior=1.0 * diageye(2), y_w_transition_prior=1.0)
+mz,vz,mω, vω, mx,vx,ms,fe = mp_2l(series, x_m_prior=series[1], ndims=n_cats, ω_m_prior=omegas, ω_w_prior=diageye(2), y_w_transition_prior=1.0)
 
 plot(mx, ribbon=sqrt.(vx))
 scatter!(series)
@@ -362,17 +365,28 @@ categories = [x[2] for x in findmax.(ms)]
 scatter(categories)
 plot(fe)
 
-omegas1 = [-6.0, 0.0]
-omegas2 = [-3.0, -1.0]
+results =   Dict("mz" => mz, "vz" => vz,
+                  "mx" => mx, "vx" => vx,
+                  "ms" => ms, "fe" => fe,
+                  "mω" => mω, "vω" => vω,
+                  "ωprior" => omegas)
+
+using JLD
+# NOTE: gates result in higher FE
+JLD.save("dump/results_2shgf_stocks_mixture.jld","results",results)
+
+omegas1 = [0.0, 2.65]
+omegas2 = [-3.0, 0.0]
 code = generate_mp_3l(2, 2, length(series))
 eval(Meta.parse(code))
 
 
-mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx1, vx1, ms1, ms2, fe2 = mp_3l(series, n_cats1=2, n_cats2=2,
-                                                                      ω1_m_prior=omegas1, ω2_m_prior=omegas2,
-                                                                      ω1_w_prior = 0.1 * diageye(2),
-                                                                      ω2_w_prior = 1.0 * diageye(2),
-                                                                      y_w_transition_prior=1.0)
+mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx1, vx1, ms1, ms2, fe2 = mp_3l(series, n_its = 20, n_cats1=2, n_cats2=2,
+                                                                        x_m_prior=series[1],
+                                                                        ω1_m_prior=omegas1, ω2_m_prior=omegas2,
+                                                                        ω1_w_prior = 10.0 * diageye(2),
+                                                                        ω2_w_prior = 0.1 * diageye(2),
+                                                                        y_w_transition_prior=1.0)
 plot(mx1, ribbon=sqrt.(vx1))
 scatter!(series)
 plot(mz1, ribbon=sqrt.(vz1))
@@ -383,13 +397,49 @@ categories2 = [x[2] for x in findmax.(ms2)]
 scatter(categories2)
 plot(fe2)
 
-src_code = generate_mp(length(series))
-eval(Meta.parse(src_code));
+results =   Dict("mz1" => mz1, "vz1" => vz1,
+                 "mz2" => mz2, "vz1" => vz2,
+                 "mx1" => mx1, "vx" => vx1,
+                 "ms1" => ms1, "ms2" => ms2
+                 "fe" => fe2,
+                 "mω1" => mω1, "vω1" => vω1,
+                 "mω2" => mω2, "vω2" => vω2,
+                 "ωprior1" => omegas1,
+                 "ωprior2" => omegas2)
+
+using JLD
+JLD.save("dump/results_3shgf_stocks_mixture.jld","results",results)
+
+# NOTE: For running normal GCV you'd have to kill Julia at first
+# compile pad, generate_mp and mp functions
+using ForneyLab
+using GCV
+using CSV
+using DataFrames
+using Plots
+using ProgressMeter
+include("compatibility.jl")
+
+df = CSV.File("data/AAPL.csv") |> DataFrame
+plot(df[:Open])
+series = df[!, :Open]
+
 omega  = -3.0
 kappa = 1.0
-mz0,vz0,mω0, vω0, mx0,vx0,fe0 = mp(series, ω_m_prior=-3.0, ω_w_prior=1.0, y_w_transition_prior=1.0);
+src_code = generate_mp(length(series))
+eval(Meta.parse(src_code));
+mz0,vz0,mω0, vω0, mx0,vx0,fe0 = mp(series, x_m_prior=series[1], ω_m_prior=omega, ω_w_prior=1.0, y_w_transition_prior=1.0);
 
 plot(mx0, ribbon=sqrt.(vx0))
 scatter!(series)
 plot(mz0, ribbon=sqrt.(vz0))
 plot(fe0)
+
+results =   Dict("mz" => mz0, "vz" => vz0,
+                  "mx" => mx0, "vx" => vx0,
+                  "fe" => fe0,
+                  "mω" => mω0, "vω" => vω0,
+                  "ωprior" => omega)
+
+using JLD
+JLD.save("dump/results_hgf_stocks_mixture.jld","results",results)
