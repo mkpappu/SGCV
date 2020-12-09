@@ -137,7 +137,7 @@ results = Dict()
     end
 end
 
-index = 15
+index = 3
 
 mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
@@ -149,72 +149,154 @@ omegas = dataset[index]["ωs"]
 
 # Plot recovered data
 categories = [x[2] for x in findmax.(ms)]
-maxup = maximum(obs) + 1.0
-mindown = minimum(obs) - 1.0
-plot()
-for (index, categ) in enumerate(categories)
-    if categ == 1
-        scatter!([index], [maxup], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    elseif categ == 2
-        scatter!([index], [maxup], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    else
-        scatter!([index], [maxup],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    end
-
-end
-for (index, categ) in enumerate(switches)
-    if categ == 1
-        scatter!([index], [mindown], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    elseif categ == 2
-        scatter!([index], [mindown], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    else
-        scatter!([index], [mindown],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
-    end
-
-end
-plot!(mx, ribbon=sqrt.(vx), label="inferred")
-plot!(reals, label="real")
-scatter!(obs, color=:grey, markershape=:xcross, markersize=2, markeralpha=0.4, label="observed")
-savefig("figures/recovered_switches.pdf")
-
-using LaTeXStrings
-plot(mz, ribbon=sqrt.(vz), label="inferred", ylabel=L"x^{(1)}", xlabel=L"t")
-plot!(upper_rw, label="real")
-savefig("figures/upper_layer.pdf")
-
-
-plot(fe[2:end])
-
-sum = 0
-for i in 1:n_datasets
-    try
-        mω = results[i]["mω"]
-        mse_ω = mean((mω .- dataset[i]["ωs"]) .^2)
-        if mse_ω > 1.0
-            sum += 1
-            println(i)
-        end
-    catch e
-    end
-end
-
+maxup = maximum(obs) + 3.0
+mindown = minimum(obs) - 3.0
 
 FE = zeros(100)
-plot()
+# plot()
 for i in 1:n_datasets
     fe = results[i]["fe"] ./ n_samples
     FE += fe
-    plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
+    # plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
 end
 FE ./= (n_datasets)
-plot(FE[3:end], legend=:false, linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
-savefig("figures/FE_analytic.pdf")
 
 using JLD
-JLD.save("dump/results_verification_analytic_misture.jld","results",results)
+JLD.save("dump/results_verification_analytic_mixture.jld","results",results)
 #JLD.save("dump/results_verification_analytic_gates.jld","results",results)
 
 using SparseArrays
 resultsJLD = JLD.load("dump/results_verification_analytic_mixture.jld")
 results = resultsJLD["results"]
 sum_fe = zeros(50)
+
+using PGFPlotsX, Plots
+using LaTeXStrings
+pgfplotsx()
+push!(PGFPlotsX.CUSTOM_PREAMBLE, raw"\usepgfplotslibrary{fillbetween}")
+
+axis1 = @pgf Axis({xlabel=L"t",
+           ylabel=L"x_t^{(1)}",
+        legend_pos = "south east",
+        grid = "major",
+    },
+    # Plot(
+    #     {only_marks, scatter, scatter_src = "explicit"},
+    #     Table(
+    #         {x = "x", y = "y", meta = "col"},
+    #          x = collect(1:n_samples), y = maxup*ones(n_samples), col = categories
+    #     ),
+    # ),
+    Plot(
+        {only_marks, scatter, scatter_src = "explicit"},
+        Table(
+            {x = "x", y = "y", meta = "col"},
+             x = collect(1:n_samples), y = mindown*ones(n_samples), col = switches
+        ),
+    ),
+    Plot(
+        {only_marks,scatter,scatter_src = "explicit"},
+        Table(
+            {x = "x", y = "y", meta = "col"},
+             x = collect(1:n_samples), y = obs, col = categories
+        ),
+    ),
+    # Plot({no_marks,color="blue"},Coordinates(collect(1:n_samples), mx)),
+    # LegendEntry("estimate"),
+    # Plot({ "name path=f", no_marks,color="blue",opacity=0.2 }, Coordinates(collect(1:n_samples), mx .+  vx)),
+    # Plot({ "name path=g", no_marks, color="blue",opacity=0.2}, Coordinates(collect(1:n_samples), mx .-  vx)),
+    # Plot({ thick, color = "blue", fill = "blue", opacity = 0.2 },
+    #            raw"fill between [of=f and g]"),
+
+    # Plot({no_marks,color="black!50"},Coordinates(collect(1:n_samples), reals)),
+    # LegendEntry("ground truth"),
+    # Plot({mark="*",mark_size = 1,color="black"},Coordinates(collect(1:n_samples), obs)),
+)
+
+pgfsave("figures/verification_results_mixture_recovered_switches.tikz", axis1)
+
+
+axis2 = @pgf Axis({xlabel=L"t",
+           ylabel=L"x_t^{(2)}",
+        legend_pos = "north east",
+    },
+    Plot({no_marks,color="blue"},Coordinates(collect(1:n_samples), mz)),
+    LegendEntry("estimate"),
+    Plot({ "name path=f", no_marks,color="blue",opacity=0.2 }, Coordinates(collect(1:n_samples), mz .+  vz)),
+    Plot({ "name path=g", no_marks, color="blue",opacity=0.2}, Coordinates(collect(1:n_samples), mz .-  vz)),
+    Plot({ thick, color = "blue", fill = "blue", opacity = 0.2 },
+               raw"fill between [of=f and g]"),
+
+    Plot({no_marks,color="green"},Coordinates(collect(1:n_samples), upper_rw)),
+    LegendEntry("ground truth"),
+)
+pgfsave("figures/verification_results_mixture_recovered_upper_layer.tikz", axis2)
+
+axis3 = @pgf Axis({xlabel="iteration",
+           ylabel="free-enery [nats]",
+        legend_pos = "north east",
+        grid = "major",
+    },
+    Plot(Coordinates(collect(1:59),FE[2:60]))
+)
+pgfsave("figures/verification_results_mixture_free_energy.tikz", axis2)
+
+
+# plot()
+# for (index, categ) in enumerate(categories)
+#     if categ == 1
+#         scatter!([index], [maxup], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     elseif categ == 2
+#         scatter!([index], [maxup], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     else
+#         scatter!([index], [maxup],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     end
+#
+# end
+# for (index, categ) in enumerate(switches)
+#     if categ == 1
+#         scatter!([index], [mindown], color=:green, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     elseif categ == 2
+#         scatter!([index], [mindown], color=:blue, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     else
+#         scatter!([index], [mindown],  color=:red, markershape=:xcross, markersize=2, markeralpha=0.4, label="")
+#     end
+#
+# end
+# plot!(mx, ribbon=sqrt.(vx), label="inferred")
+# plot!(reals, label="real")
+# scatter!(obs, color=:grey, markershape=:xcross, markersize=2, markeralpha=0.4, label="observed")
+# savefig("figures/recovered_switches.pdf")
+#
+# using LaTeXStrings
+# plot(mz, ribbon=sqrt.(vz), label="inferred", ylabel=L"x^{(1)}", xlabel=L"t")
+# plot!(upper_rw, label="real")
+# savefig("figures/upper_layer.pdf")
+#
+#
+# plot(fe[2:end])
+#
+# sum = 0
+# for i in 1:n_datasets
+#     try
+#         mω = results[i]["mω"]
+#         mse_ω = mean((mω .- dataset[i]["ωs"]) .^2)
+#         if mse_ω > 1.0
+#             sum += 1
+#             println(i)
+#         end
+#     catch e
+#     end
+# end
+#
+#
+# FE = zeros(100)
+# plot()
+# for i in 1:n_datasets
+#     fe = results[i]["fe"] ./ n_samples
+#     FE += fe
+#     plot!(fe[3:end], legend=false, linewidth=0.05, color=:black)
+# end
+# FE ./= (n_datasets)
+# plot(FE[3:end], legend=:false, linewidth=3.0, color=:red, xlabel="iteration #", ylabel="Free Energy [nats]")
+# savefig("figures/FE_analytic.pdf")
