@@ -54,7 +54,7 @@ function mp_2l(obs;
     x_x_w_prior = 1.0*diageye(ndims),
     z_z_m_prior = zeros(ndims),
     z_z_w_prior = 1.0*diageye(ndims),
-    z_w_transition_prior = 1000.0,
+    z_w_transition_prior = 100.0,
     y_w_transition_prior =  1/mnv,
 )
     n_samples = length(obs)
@@ -168,7 +168,7 @@ function mp_3l(obs;
     x_x_w_prior = 1.0*diageye(n_cats1),
     z1_z1_m_prior = zeros(n_cats1),
     z1_z1_w_prior = 1.0*diageye(n_cats1),
-    z1_w_transition_prior = 10.0,
+    z1_w_transition_prior = 1000.0,
     z2_z2_m_prior = zeros(n_cats2),
     z2_z2_w_prior = 1.0*diageye(n_cats2),
     z2_w_transition_prior = 10.0,
@@ -327,8 +327,8 @@ function mp(obs;
     @showprogress "Iterations" for i = 1:n_its
 
         stepX!(data, marginals)
-        stepΩ!(data, marginals)
         stepZ!(data, marginals)
+        stepΩ!(data, marginals)
 
         fe[i] = freeEnergy(data, marginals)
     end
@@ -341,6 +341,15 @@ function mp(obs;
     vx = [ForneyLab.unsafeVar(marginals[pad(:x,t)]) for t=1:n_samples]
     return mz,vz,mω, vω, mx,vx,fe
 end
+
+using JLD
+results2shgf = load("dump/results_2shgf_stocks_mixture.jld")["results"]
+resultshgf = load("dump/results_hgf_stocks_mixture.jld")["results"]
+results3shgf = load("dump/results_3shgf_stocks_mixture.jld")["results"]
+plot(results2shgf["fe"], label="2-L SHGF")
+plot!(results3shgf["fe"], label="3-L SHGF")
+plot!(resultshgf["fe"], label="HGF")
+savefig("figures/fe_stocks.pdf")
 
 # download data
 using CSV
@@ -356,7 +365,7 @@ omegas = [-1.0, 4.0]
 n_cats = length(omegas)
 code = generate_mp_2l(n_cats, length(series))
 eval(Meta.parse(code))
-mz,vz,mω, vω, mx,vx,ms,fe = mp_2l(series, x_m_prior=series[1], ndims=n_cats, ω_m_prior=omegas, ω_w_prior=diageye(2), y_w_transition_prior=1.0)
+mz,vz,mω, vω, mx,vx,ms,fe = mp_2l(series, x_m_prior=series[1], ndims=n_cats, z_w_prior=100.0, z_z_w_prior=100.0*diageye(2), z_w_transition_prior=100.0, ω_m_prior=omegas, ω_w_prior=diageye(2), y_w_transition_prior=1.0)
 
 plot(mx, ribbon=sqrt.(vx))
 scatter!(series)
@@ -375,17 +384,20 @@ using JLD
 # NOTE: gates result in higher FE
 JLD.save("dump/results_2shgf_stocks_mixture.jld","results",results)
 
-omegas1 = [0.0, 2.65]
-omegas2 = [-3.0, 0.0]
+omegas1 = [-1.0, 4.0]
+omegas2 = [-3.0, 1.0]
 code = generate_mp_3l(2, 2, length(series))
 eval(Meta.parse(code))
 
 
-mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx1, vx1, ms1, ms2, fe2 = mp_3l(series, n_its = 20, n_cats1=2, n_cats2=2,
+mz1, vz1, mω1, vω1, mz2, vz2, mω2, vω2, mx1, vx1, ms1, ms2, fe2 = mp_3l(series, n_its = 100, n_cats1=2, n_cats2=2,
                                                                         x_m_prior=series[1],
                                                                         ω1_m_prior=omegas1, ω2_m_prior=omegas2,
-                                                                        ω1_w_prior = 10.0 * diageye(2),
-                                                                        ω2_w_prior = 0.1 * diageye(2),
+                                                                        ω1_w_prior = 1.0 * diageye(2),
+                                                                        ω2_w_prior = 10.0 * diageye(2),
+                                                                        z1_w_transition_prior = 100.0,
+                                                                        z1_w_prior = 100.0,
+                                                                        z2_w_prior = 100.0,
                                                                         y_w_transition_prior=1.0)
 plot(mx1, ribbon=sqrt.(vx1))
 scatter!(series)
@@ -400,7 +412,7 @@ plot(fe2)
 results =   Dict("mz1" => mz1, "vz1" => vz1,
                  "mz2" => mz2, "vz1" => vz2,
                  "mx1" => mx1, "vx" => vx1,
-                 "ms1" => ms1, "ms2" => ms2
+                 "ms1" => ms1, "ms2" => ms2,
                  "fe" => fe2,
                  "mω1" => mω1, "vω1" => vω1,
                  "mω2" => mω2, "vω2" => vω2,
@@ -424,11 +436,11 @@ df = CSV.File("data/AAPL.csv") |> DataFrame
 plot(df[:Open])
 series = df[!, :Open]
 
-omega  = -3.0
+omega  = 1.0
 kappa = 1.0
 src_code = generate_mp(length(series))
 eval(Meta.parse(src_code));
-mz0,vz0,mω0, vω0, mx0,vx0,fe0 = mp(series, x_m_prior=series[1], ω_m_prior=omega, ω_w_prior=1.0, y_w_transition_prior=1.0);
+mz0,vz0,mω0, vω0, mx0,vx0,fe0 = mp(series, x_m_prior=series[1], z_z_w_prior=100.0 * diageye(2), z_w_transition_prior=100.0, ω_m_prior=omega, ω_w_prior=1.0, y_w_transition_prior=1.0);
 
 plot(mx0, ribbon=sqrt.(vx0))
 scatter!(series)

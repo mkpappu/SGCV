@@ -137,7 +137,15 @@ results = Dict()
     end
 end
 
-index = 3
+using JLD
+#JLD.save("dump/results_verification_analytic_mixture.jld","results",results)
+#JLD.save("dump/results_verification_analytic_gates.jld","results",results)
+
+using SparseArrays
+resultsJLD = JLD.load("dump/results_verification_analytic_mixture.jld")
+results = resultsJLD["results"]
+
+index = 8
 
 mz, vz, mx, vx, ms, mω, vω,fe = results[index]["mz"], results[index]["vz"], results[index]["mx"], results[index]["vx"], results[index]["ms"], results[index]["mω"], results[index]["vω"], results[index]["fe"]
 reals = dataset[index]["reals"]
@@ -150,7 +158,7 @@ omegas = dataset[index]["ωs"]
 # Plot recovered data
 categories = [x[2] for x in findmax.(ms)]
 maxup = maximum(obs) + 3.0
-mindown = minimum(obs) - 3.0
+mindown = minimum(obs) - 50.0
 
 FE = zeros(100)
 # plot()
@@ -161,13 +169,7 @@ for i in 1:n_datasets
 end
 FE ./= (n_datasets)
 
-using JLD
-JLD.save("dump/results_verification_analytic_mixture.jld","results",results)
-#JLD.save("dump/results_verification_analytic_gates.jld","results",results)
 
-using SparseArrays
-resultsJLD = JLD.load("dump/results_verification_analytic_mixture.jld")
-results = resultsJLD["results"]
 sum_fe = zeros(50)
 
 using PGFPlotsX, Plots
@@ -191,14 +193,14 @@ axis1 = @pgf Axis({xlabel=L"t",
         {only_marks, scatter, scatter_src = "explicit"},
         Table(
             {x = "x", y = "y", meta = "col"},
-             x = collect(1:n_samples), y = mindown*ones(n_samples), col = switches
+             x = collect(1:n_samples), y = mindown*ones(n_samples), col = categories
         ),
     ),
     Plot(
         {only_marks,scatter,scatter_src = "explicit"},
         Table(
             {x = "x", y = "y", meta = "col"},
-             x = collect(1:n_samples), y = obs, col = categories
+             x = collect(1:n_samples), y = obs, col = switches
         ),
     ),
     # Plot({no_marks,color="blue"},Coordinates(collect(1:n_samples), mx)),
@@ -222,8 +224,8 @@ axis2 = @pgf Axis({xlabel=L"t",
     },
     Plot({no_marks,color="blue"},Coordinates(collect(1:n_samples), mz)),
     LegendEntry("estimate"),
-    Plot({ "name path=f", no_marks,color="blue",opacity=0.2 }, Coordinates(collect(1:n_samples), mz .+  vz)),
-    Plot({ "name path=g", no_marks, color="blue",opacity=0.2}, Coordinates(collect(1:n_samples), mz .-  vz)),
+    Plot({ "name path=f", no_marks,color="blue",opacity=0.2 }, Coordinates(collect(1:n_samples), mz .+  sqrt.(vz))),
+    Plot({ "name path=g", no_marks, color="blue",opacity=0.2}, Coordinates(collect(1:n_samples), mz .-  sqrt.(vz))),
     Plot({ thick, color = "blue", fill = "blue", opacity = 0.2 },
                raw"fill between [of=f and g]"),
 
@@ -239,9 +241,23 @@ axis3 = @pgf Axis({xlabel="iteration",
     },
     Plot(Coordinates(collect(1:59),FE[2:60]))
 )
-pgfsave("figures/verification_results_mixture_free_energy.tikz", axis2)
+pgfsave("figures/verification_results_mixture_free_energy.tikz", axis3)
 
+using Distances
+prior_distance = 0.0
+posterior_distance = 0.0
+for i in 1:n_datasets
+    prior_distance += evaluate(Euclidean(), results[i]["ωprior"], dataset[i]["ωs"])
+    posterior_distance += evaluate(Euclidean(), results[i]["mω"], dataset[i]["ωs"])
+end
+prior_distance = prior_distance/n_datasets
+posterior_distance = posterior_distance/n_datasets
 
+using StatsBase
+
+sum([rmsd(results[i]["mω"], Float64.(dataset[i]["ωs"]), normalize=true) for i in 1:n_datasets])/n_datasets
+
+println()
 # plot()
 # for (index, categ) in enumerate(categories)
 #     if categ == 1
