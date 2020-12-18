@@ -1,6 +1,6 @@
 \begin{tikzpicture}
 \begin{axis}[xlabel={$t$}, ylabel={$x_t^{(1)}$}, legend pos={north west}, mark options={scale={0.3}}, grid={major}, style={thick}]
-    \addplot[no marks, color={blue}]
+    \addplot[no marks, color={magenta}]
         coordinates {
             (1,65.84555538066981)
             (2,66.40840734513901)
@@ -257,7 +257,7 @@
         }
         ;
     \addlegendentry {2L-SHGF}
-    \addplot[name path=f, no marks, color={blue}, opacity={0.2}]
+    \addplot[name path=f, no marks, color={magenta}, opacity={0.2}]
         coordinates {
             (1,67.7730839699815)
             (2,68.58319765301938)
@@ -513,7 +513,7 @@
             (252,120.1232976200715)
         }
         ;
-    \addplot[name path=g, no marks, color={blue}, opacity={0.2}]
+    \addplot[name path=g, no marks, color={magenta}, opacity={0.2}]
         coordinates {
             (1,63.918026791358116)
             (2,64.23361703725864)
@@ -769,7 +769,7 @@
             (252,114.75780148764551)
         }
         ;
-    \addplot[thick, color={blue}, fill={blue}, opacity={0.2}]
+    \addplot[thick, color={magenta}, fill={magenta}, opacity={0.2}]
         fill between [of=f and g]
         ;
     \addplot[only marks, color={black}, opacity={0.3}]

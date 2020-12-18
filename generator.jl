@@ -59,7 +59,7 @@ function generate_switches(n_switches, n_cats, n_samples)
     return  switches
 end
 
-
+# Generate data
 Random.seed!(42)
 n_datasets = 100
 n_samples = 500
