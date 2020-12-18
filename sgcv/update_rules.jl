@@ -235,8 +235,8 @@ function ruleMGaussianMeanPrecisionFGD(msg_out::Message{Function,Multivariate},
         cubature  = msg_out.dist.params[:cubature]
         mean, cov = approximate_meancov(cubature, (x) -> exp(logpdf(x)), msg_fwd.dist)
         approx_message = Message(Multivariate, GaussianMeanVariance, m = mean, v = cov)
-        println(approx_message)
-        println(msg_mean)
+        # println(approx_message)
+        # println(msg_mean)
         return ruleMGaussianMeanPrecisionGGD(approx_message, msg_mean, dist_prec)
     end
 end
@@ -273,8 +273,8 @@ function ruleMGaussianMeanPrecisionFGD(msg_out::Message{Function,Univariate},
         cubature  = msg_out.dist.params[:cubature]
         mean, cov = approximate_meancov(cubature, (x) -> exp(logpdf(x)), msg_fwd.dist)
         approx_message = Message(Univariate, GaussianMeanVariance, m = mean, v = cov)
-        println(approx_message)
-        println(msg_mean)
+        # println(approx_message)
+        # println(msg_mean)
         return ruleMGaussianMeanPrecisionGGD(approx_message, msg_mean, dist_prec)
     end
 end
