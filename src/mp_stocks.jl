@@ -2,7 +2,8 @@ using Revise
 using ForneyLab
 include("sgcv/SGCV.jl")
 using Main.SGCV
-using GCV
+include("gcv/GCV.jl")
+using Main.GCV
 using Plots
 using SparseArrays
 using Random

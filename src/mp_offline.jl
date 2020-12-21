@@ -1,13 +1,14 @@
 using Revise
 using ForneyLab
-include("sgcv/SGCV.jl")
+include("../sgcv/SGCV.jl")
 using Main.SGCV
-using GCV
+include("../gcv/GCV.jl")
+using Main.GCV
 using Plots
 using SparseArrays
 using Random
 using ProgressMeter
-include("compatibility.jl")
+include("../compatibility.jl")
 
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
@@ -112,7 +113,7 @@ function mp(obs;
     return mz,vz,mx,vx,ms, mω, vω, fe
 end
 
-include("generator.jl")
+include("../generator.jl")
 
 code = generate_mp(n_cats, n_samples)
 eval(Meta.parse(code))

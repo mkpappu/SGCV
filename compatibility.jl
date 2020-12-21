@@ -1,7 +1,7 @@
 import ForneyLab: inferUpdateRule!, collectInboundTypes, leaftypes, isApplicable, prod!,
                   @symmetrical, SampleList, VariateType, SPEqualityFnG, unsafeMean, Weights,
                   inferMarginalRule, Cluster
-import GCV: SVBGaussianMeanPrecisionMEND, MGaussianMeanPrecisionEGD
+
 export inferUpdateRule!, prod!, inferMarginalRule
 
 function inferUpdateRule!(entry::ScheduleEntry,
@@ -22,7 +22,7 @@ function inferUpdateRule!(entry::ScheduleEntry,
     outbounds = collect(keys(inferred_outbound_types))
     for i in 1:length(outbounds)
         if occursin(string(:gaussiancontrolledvariance_), string(outbounds[i].node.id)) && length(applicable_rules) > 1
-            filter!(e -> e≠SVBGaussianMeanPrecisionMEND, applicable_rules)
+            filter!(e -> e≠GCV.SVBGaussianMeanPrecisionMEND, applicable_rules)
             filter!(e -> e≠SPEqualityFnG, applicable_rules)
             break
         end
@@ -65,13 +65,11 @@ function inferUpdateRule!(entry::ScheduleEntry,
     outbounds = collect(keys(inferred_outbound_types))
     for i in 1:length(outbounds)
         if occursin(string(:switchinggaussiancontrolledvariance_), string(outbounds[i].node.id)) && length(applicable_rules) > 1
-            # filter!(e -> e≠SPEqualityFnG, applicable_rules)
-            # filter!(e -> e≠SVBGaussianMeanPrecisionMEND, applicable_rules)
-            applicable_rules = [SVBGaussianMeanPrecisionMEND]
+            applicable_rules = [GCV.SVBGaussianMeanPrecisionMEND]
             break
         elseif occursin(string(:gaussiancontrolledvariance_), string(outbounds[i].node.id)) && length(applicable_rules) > 1
             filter!(e -> e≠SPEqualityFnG, applicable_rules)
-            filter!(e -> e≠SVBGaussianMeanPrecisionMEND, applicable_rules)
+            filter!(e -> e≠GCV.SVBGaussianMeanPrecisionMEND, applicable_rules)
             break
         end
 
@@ -101,8 +99,8 @@ function inferMarginalRule(cluster::Cluster, inbound_types::Vector{<:Type})
             push!(applicable_rules, rule)
         end
     end
-    if MGaussianMeanPrecisionEGD in applicable_rules && length(applicable_rules) > 1
-        filter!(e -> e≠MGaussianMeanPrecisionEGD, applicable_rules)
+    if GCV.MGaussianMeanPrecisionEGD in applicable_rules && length(applicable_rules) > 1
+        filter!(e -> e≠GCV.MGaussianMeanPrecisionEGD, applicable_rules)
     end
 
     # Select and set applicable rule
