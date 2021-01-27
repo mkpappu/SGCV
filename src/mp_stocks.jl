@@ -1,14 +1,14 @@
 using Revise
 using ForneyLab
-include("sgcv/SGCV.jl")
+include("../sgcv/SGCV.jl")
 using Main.SGCV
-include("gcv/GCV.jl")
+include("../gcv/GCV.jl")
 using Main.GCV
 using Plots
 using SparseArrays
 using Random
 using ProgressMeter
-include("compatibility.jl")
+include("../compatibility.jl")
 
 pad(sym::Symbol, t::Int) = sym*:_*Symbol(lpad(t,3,'0')) # Left-pads a number with zeros, converts it to symbol and appends to sym
 
@@ -344,7 +344,8 @@ function mp(obs;
 end
 
 using JLD
-results2shgf = load("dump/results_2shgf_stocks_mixture.jld")["results"]
+results3shgf = load("dump/results_3shgf_stocks_mixture.jld")["results"]
+results2l3cshgf = load("dump/results_2l3cshgf_stocks_mixture.jld")["results"]
 resultshgf = load("dump/results_hgf_stocks_mixture.jld")["results"]
 results3shgf = load("dump/results_3shgf_stocks_mixture.jld")["results"]
 plot(results2shgf["fe"], label="2-L SHGF")
@@ -360,6 +361,29 @@ df = CSV.File("data/AAPL.csv") |> DataFrame
 plot(df[:Open])
 series = df[!, :Open]
 
+# good prior
+omegas = [-5.0, 0.0, 5.0]
+n_cats = length(omegas)
+code = generate_mp_2l(n_cats, length(series))
+eval(Meta.parse(code))
+mz, vz, mω, vω, mx,vx,ms,fe = mp_2l(series, x_m_prior=series[1], ndims=n_cats, z_w_prior=100.0, z_z_w_prior=100.0*diageye(2), z_w_transition_prior=100.0, ω_m_prior=omegas, ω_w_prior=diageye(n_cats), y_w_transition_prior=1.0)
+
+plot(mx, ribbon=sqrt.(vx))
+scatter!(series)
+plot(mz, ribbon=sqrt.(vz))
+categories = [x[2] for x in findmax.(ms)]
+scatter(categories)
+plot(fe)
+
+results =   Dict("mz" => mz, "vz" => vz,
+                  "mx" => mx, "vx" => vx,
+                  "ms" => ms, "fe" => fe,
+                  "mω" => mω, "vω" => vω,
+                  "ωprior" => omegas)
+
+using JLD
+
+JLD.save("dump/results_2l3cshgf_stocks_mixture.jld", "results", results)
 
 # good prior
 omegas = [-1.0, 4.0]
