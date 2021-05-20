@@ -60,9 +60,9 @@ function generate_switches(n_switches, n_cats, n_samples)
 end
 
 # Generate data
-Random.seed!(42)
-n_datasets = 100
-n_samples = 500
+Random.seed!(1)
+n_datasets = 1
+n_samples = 100
 n_cats = 3
 dB = 10.0
 n_switches = 4
