@@ -61,7 +61,7 @@ end
 
 # Generate data
 Random.seed!(1)
-n_datasets = 1
+n_datasets = 100
 n_samples = 100
 n_cats = 3
 dB = 10.0
