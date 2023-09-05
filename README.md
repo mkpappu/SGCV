@@ -6,7 +6,7 @@ previously used the HGF to track inferred beliefs of individuals who experience 
 
 The motivation for extending the HGF model is that we think the reward_tally, or the total number of points at each of 160 trials, might be a signal that submits to regime-switching dynamics.
 
-## Overview and where did we get these scripts?
+## Getting Started (+Overview) and where did we get these scripts?
 
 ## Implementation (and key functions)
 
