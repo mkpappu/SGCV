@@ -8,6 +8,8 @@ The motivation for extending the HGF model is that we think the reward_tally, or
 
 ## Getting Started (+Overview) and where did we get these scripts?
 
+note: ForneyLab package must be v0.11.3 (will work with Julia 1.3+)
+
 ## Implementation (and key functions)
 
 ## Inference (how do we know the number of regimes?)
