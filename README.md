@@ -30,6 +30,8 @@ Do this by typing <code>[</code> in the terminal, followed by: <code>add Progres
 
 ## Implementation (and key functions)
 
+To find regime switching, you will use the Jupyter notebook titled <code>validation-part3.ipynb</code>
+
 ## Inference (how do we know the number of regimes?)
 
 ## What do results and figures mean?
