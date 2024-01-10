@@ -25,9 +25,10 @@ After cloning this repository to your local machine, open the project in VS Code
 *Distributions
 *JLD
 *PGFPlotsX
+*LaTeXStrings
 *ForneyLab@v0.11.3
 
-Do this by typing <code>[</code> in the terminal, followed by: <code>add ProgressMeter CSV DataFrames Plots SparseArrays HCubature FastGaussQuadrature ForwardDiff StatsPlots Distributions JLD PGFPlotsX ForneyLab@v0.11.3</code>. Note that ForneyLab version must be 0.11.3 which is stable and compatible with Julia v1.3+.
+Do this by typing <code>[</code> in the terminal, followed by: <code>add ProgressMeter CSV DataFrames Plots SparseArrays HCubature FastGaussQuadrature ForwardDiff StatsPlots Distributions JLD PGFPlotsX LaTeXStrings ForneyLab@v0.11.3</code>. Note that ForneyLab version must be 0.11.3 which is stable and compatible with Julia v1.3+.
 
 ## Implementation (and key functions)
 
